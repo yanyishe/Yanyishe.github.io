@@ -4,20 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>女神异闻录 · 人物人格测试</title>
+<link rel="preload" as="image" href="./images/banner.webp" fetchpriority="high">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* 内容卡固定 920px 居中，所以两侧可用宽度 = (100vw - 920px) / 2。 */
+  --edge: max(0px, calc(50vw - 460px));
+  /* 牌层高度由 JS 实测正文总高后写入（兜底给 200vh）。
+     写死 200vh 时页面实际有 ~250vh，底部那一截根本没有牌。 */
+  --layer-h: 200vh;
+  /* 牌宽 = min(横向约束, 纵向约束)，两个方向都必须满足：
+       横向：两侧要放得下「近景列 + 一个牌宽的间隙 + 远景列」
+       纵向：11 个槽位交错排布，同列相邻两张相距 2 个节距(2×7.4%)，
+             牌高(1.5×宽)必须小于它，否则又叠回去 —— 所以不能写死 px。 */
+  --base: min(
+    clamp(72px, calc((50vw - 460px) * 0.48), 190px),
+    calc(var(--layer-h) * 0.084)
+  );
+}
 
 body {
   background: #f5f3f0;
   background-image:
     radial-gradient(ellipse 80% 50% at 50% 100%, rgba(180,140,200,0.12) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 80% 100%, rgba(230,100,130,0.08) 0%, transparent 60%);
-  background-attachment: fixed;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: #1a1a1f;
   line-height: 1.6;
   min-height: 100vh;
-  position: relative;
   overflow-x: hidden;
 }
 
@@ -38,7 +53,7 @@ body {
   object-fit: cover;
 }
 
-/* ========== 背景装饰 ========== */
+/* ========== 背景装饰（合并为一层，减少合成层数量） ========== */
 .bg-pattern {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background-image:
@@ -47,34 +62,33 @@ body {
       rgba(140,100,200,0.035) 120px, rgba(140,100,200,0.035) 121px);
   background-size: 36px 36px, 100% 100%;
 }
-.bg-logo {
-  position: fixed; bottom: -80px; left: -100px;
-  width: 480px; height: 480px;
-  background-image: url('./images/p30-logo.png');
-  background-size: contain; background-repeat: no-repeat; background-position: center;
-  opacity: 0.04; z-index: 0; pointer-events: none;
-  transform: rotate(-8deg);
-  filter: grayscale(0.2);
-}
-.bg-hero {
-  position: fixed; bottom: -100px; right: -120px;
-  width: 620px; height: 620px;
-  background-image: url('./images/persona-characters.png');
-  background-size: contain; background-repeat: no-repeat; background-position: center;
-  opacity: 0.05; z-index: 0; pointer-events: none;
-  transform: rotate(6deg);
-  filter: grayscale(0.3) blur(0.5px);
-}
-.bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
-.bg-shapes::before {
+.bg-pattern::before {
   content: ''; position: absolute; top: 45%; right: 6%;
   width: 180px; height: 180px;
   border: 1px solid rgba(230,57,70,0.10); border-radius: 50%;
 }
-.bg-shapes::after {
+.bg-pattern::after {
   content: ''; position: absolute; bottom: 10%; left: 5%;
   width: 120px; height: 120px;
   border: 1px solid rgba(124,58,237,0.10); border-radius: 50%;
+}
+.bg-logo {
+  position: fixed; bottom: -80px; left: -100px;
+  width: 480px; height: 480px;
+  background-image: url('./images/p30-logo.webp');
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  opacity: 0.04; z-index: 0; pointer-events: none;
+  transform: rotate(-8deg);
+  will-change: transform;
+}
+.bg-hero {
+  position: fixed; bottom: -100px; right: -120px;
+  width: 620px; height: 620px;
+  background-image: url('./images/persona-bg.webp');
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  opacity: 0.05; z-index: 0; pointer-events: none;
+  transform: rotate(6deg);
+  will-change: transform;
 }
 
 /* ========== 塔罗牌层 ========== */
@@ -82,26 +96,52 @@ body {
   position: absolute;
   top: 0; left: 0;
   width: 100%;
-  height: 200vh;
+  height: var(--layer-h);
   z-index: 1;
   pointer-events: none;
   overflow: hidden;
-  perspective: 1600px;
+  /* 注意：透视不能设在这一层。perspective 只作用于"直接子元素"，
+     而 .tarot-card 是 .tarot-wrap 的子元素（本层的孙元素），
+     写在这里对翻牌完全无效 —— 表现为 class 加上了、正面图也写入了，
+     但卡片视觉上纹丝不动。真正的透视放在 .tarot-wrap 上。 */
+  contain: layout paint;
 }
 
 .tarot-wrap {
+  /* 尺寸 = 基准 × 层级系数，宽高比恒为 2:3 */
+  --w: calc(var(--base) * var(--s, 1));
+  --h: calc(var(--w) * 1.5);
+  /* 两种列位，右边缘都锚在"内容卡边缘再退让 --base×0.13"处。
+     这个退让量必须随牌宽缩放，不能写死 px ——
+     牌有 3~7° 的倾角，旋转后的外接框每侧会比牌本身宽出约 --base×0.088；
+     再叠加翻开时的那点放大（--base×0.021），写死 12px 在现场是被吃光的
+     （实测翻开后牌角会钻到内容卡下面 4.2px）。
+     --k 是"再向外让开的牌宽倍数"：近景列 0，远景列 1.22。
+     让开量必须同时盖住"近景列向左的外接框扩展 + 远景列向右的扩展"，
+     两列 x 区间才真正不相交。 */
+  --lx: max(0px, calc(var(--edge) - var(--w) - var(--base) * 0.15 - var(--base) * var(--k, 0)));
+  --rx: max(0px, calc(var(--edge) - var(--w) - var(--base) * 0.15 - var(--base) * var(--k, 0)));
   position: absolute;
   top: var(--t, auto);
   left: var(--l, auto);
   right: var(--r, auto);
   bottom: var(--b, auto);
-  width: var(--w, 90px);
-  height: var(--h, 136px);
+  width: var(--w);
+  height: var(--h);
   cursor: pointer;
   pointer-events: auto;
   z-index: 100;
-  --px: 0; --py: 0; --scale: 1;
-  transform: translate3d(var(--px), var(--py), 0) scale(var(--scale));
+  /* 透视必须建在卡片的"直接父级"上，卡片绕 Y 轴翻转才有立体感。
+     这里给的是每张牌各自的透视（原点在牌中心），
+     比整层共用一个透视点更符合"每张牌是一个独立立体物"的观感。 */
+  perspective: 1000px;
+  /* 关键的第二半：本元素自身带 transform（视差平移 / 缩放 / 倾斜），
+     而 transform-style 默认是 flat —— 它会把子元素的 3D 变换压平到本平面，
+     于是子级 .tarot-card 的 rotateY(180deg) 被降级成一个 2D 变换，
+     卡片视觉上"根本没翻"。必须有 preserve-3d 才让子元素留在 3D 空间里。 */
+  transform-style: preserve-3d;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
   transition:
     top 1.2s cubic-bezier(0.4, 0, 0.2, 1),
     left 1.2s cubic-bezier(0.4, 0, 0.2, 1),
@@ -109,7 +149,7 @@ body {
     bottom 1.2s cubic-bezier(0.4, 0, 0.2, 1),
     width 1.2s cubic-bezier(0.4, 0, 0.2, 1),
     height 1.2s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.8s ease, filter 0.8s ease;
+    opacity 0.8s ease;
 }
 
 .tarot-card {
@@ -117,7 +157,23 @@ body {
   width: 100%; height: 100%;
   transform-style: preserve-3d;
   border-radius: 6px;
-  transition: transform 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+  /* 翻牌完全交给 CSS：类名一变，合成器直接插值。
+     之前把 rotateY 写在"每帧由 JS 覆写"的 transform 里，一旦 rAF 停摆
+     （标签页在后台、卡片离屏、低电节流）翻牌就只改状态、不显形。
+     静态的起始倾角走 --rot 变量，由脚本初始化时写一次。 */
+  /* "抬起"也放在这一层，和翻转共用一次过渡。
+     位移 + 沿 Z 轴推向观察者：父级的 perspective 会把 translateZ 换算成
+     近大远小，于是牌"离你更近"而不是单纯被拉大。
+     不用 JS 逐帧插值的原因同上——rAF 一停摆，抬起就会缺一截。 */
+  transform: rotate(var(--rot, 0deg)) rotateY(0deg);
+  transition: transform 0.8s cubic-bezier(0.34, 1.18, 0.5, 1);
+}
+
+/* 翻开：从背景里"浮"起来 —— 上浮 22px、朝观察者推进 40px（约放大 4.2%）。
+   推进量受"两列间隙 + 内容卡退让量"约束，不能一味放大，
+   实测断言见 tools/probe_flip_overlap.py（全部翻开时两两无重叠、且不侵入内容卡）。 */
+.tarot-wrap.flipped .tarot-card {
+  transform: translate3d(0, -22px, 40px) rotate(var(--rot, 0deg)) rotateY(180deg);
 }
 
 .tarot-face {
@@ -128,11 +184,30 @@ body {
   border-radius: 6px;
   overflow: hidden;
   background: #1a1a2e;
-  box-shadow: 0 8px 24px rgba(40,30,80,0.25);
+  box-shadow: 0 6px 18px rgba(40,30,80,0.25);
+  /* 悬停时只对这一张卡片做阴影过渡，重绘面积很小 */
+  transition: box-shadow 0.3s ease;
+}
+
+/* 悬停：抬起感 —— 阴影拉长 + 一圈细白边，像被"拿起来" */
+.tarot-wrap:hover .tarot-face {
+  box-shadow:
+    0 18px 36px -10px rgba(40,30,80,0.5),
+    0 0 0 2px rgba(255,255,255,0.92);
+}
+
+/* 翻开后：换成暖金色细边 + 一圈暖光，和冷蓝的面具牌背形成对照。
+   阴影压得更深、铺得更开 —— 这是"浮起来"最主要的那一半：
+   牌离桌面越远，投影越大越淡。 */
+.tarot-wrap.flipped .tarot-face {
+  box-shadow:
+    0 34px 62px -18px rgba(40,30,80,0.62),
+    0 0 0 2px rgba(214,166,74,0.92),
+    0 0 38px -6px rgba(214,166,74,0.5);
 }
 
 .tarot-back {
-  background-image: url('./images/tarot-back.png');
+  background-image: url('./images/tarot-back.webp');
   background-size: cover;
   background-position: center;
 }
@@ -142,60 +217,102 @@ body {
   background-position: center;
 }
 
-.tarot-wrap[data-layer="back"]  { opacity: 0.32; filter: blur(0.8px) saturate(0.8); }
-.tarot-wrap[data-layer="mid"]   { opacity: 0.6; }
-.tarot-wrap[data-layer="front"] { opacity: 0.82; }
+.tarot-wrap[data-layer="back"]  { opacity: 0.35; --s: 0.60; --k: 1.25; }
+.tarot-wrap[data-layer="mid"]   { opacity: 0.66; --s: 0.78; --k: 0; }
+.tarot-wrap[data-layer="front"] { opacity: 0.68; --s: 1;    --k: 0; }
 
-.tarot-wrap:hover { opacity: 1 !important; filter: none !important; }
-.tarot-wrap.flipped { opacity: 1 !important; filter: none !important; z-index: 200; }
+/* 远景牌不投阴影：22 张牌的阴影叠在一起，是"糊成一团"的主要来源之一。
+   纵深靠「尺寸 + 透明度」表达，不用 filter:blur()——那会让每帧重新光栅化，
+   正是当初吃掉几个 G 显存的东西。 */
+.tarot-wrap[data-layer="back"] .tarot-face {
+  box-shadow: 0 3px 8px -3px rgba(40,30,80,0.16);
+}
 
-/* ========== 布局 1（顶部） ========== */
-body.layout-top .tw-0  { --t: 25%; --l: 1.5%; --w: 88px; --h: 132px; }
-body.layout-top .tw-1  { --t: 24%; --r: 1.5%; --w: 86px; --h: 130px; }
-body.layout-top .tw-2  { --t: 36%; --l: 2%; --w: 90px; --h: 136px; }
-body.layout-top .tw-3  { --t: 35%; --r: 2%; --w: 88px; --h: 132px; }
-body.layout-top .tw-4  { --t: 22%; --l: 8%; --w: 68px; --h: 102px; }
-body.layout-top .tw-5  { --t: 21%; --r: 8%; --w: 68px; --h: 102px; }
-body.layout-top .tw-6  { --t: 43%; --l: 9%; --w: 66px; --h: 100px; }
-body.layout-top .tw-7  { --t: 42%; --r: 9%; --w: 66px; --h: 100px; }
-body.layout-top .tw-8  { --t: 44%; --l: 26%; --w: 64px; --h: 96px; }
-body.layout-top .tw-9  { --t: 43.5%; --r: 26%; --w: 64px; --h: 96px; }
-body.layout-top .tw-10 { --t: 22.5%; --l: 20%; --w: 52px; --h: 78px; }
-body.layout-top .tw-11 { --t: 22%; --r: 20%; --w: 52px; --h: 78px; }
-body.layout-top .tw-12 { --t: 23.5%; --l: 32%; --w: 48px; --h: 72px; }
-body.layout-top .tw-13 { --t: 23%; --r: 32%; --w: 48px; --h: 72px; }
-body.layout-top .tw-14 { --t: 48%; --l: 20%; --w: 54px; --h: 82px; opacity: 0; }
-body.layout-top .tw-15 { --t: 47.5%; --r: 20%; --w: 54px; --h: 82px; opacity: 0; }
-body.layout-top .tw-16 { --t: 49%; --l: 48%; --w: 50px; --h: 76px; opacity: 0; }
-body.layout-top .tw-17 { --t: 49%; --r: 48%; --w: 50px; --h: 76px; opacity: 0; }
-body.layout-top .tw-18 { --t: 45%; --l: 12%; --w: 52px; --h: 78px; opacity: 0; }
-body.layout-top .tw-19 { --t: 44.5%; --r: 13%; --w: 52px; --h: 78px; opacity: 0; }
-body.layout-top .tw-20 { --t: 46%; --l: 44%; --w: 48px; --h: 72px; opacity: 0; }
-body.layout-top .tw-21 { --t: 45.5%; --r: 45%; --w: 48px; --h: 72px; opacity: 0; }
+/* 外列（大牌与中牌）再向外让开一个牌宽，内列（小牌）紧贴内容卡 */
 
-/* ========== 布局 2（滚动后） ========== */
-body.layout-scrolled .tw-0  { --t: 56%; --l: 6%;  --w: 78px; --h: 118px; }
-body.layout-scrolled .tw-1  { --t: 54%; --r: 10%; --w: 82px; --h: 124px; }
-body.layout-scrolled .tw-2  { --t: 65%; --l: 20%; --w: 64px; --h: 96px;  }
-body.layout-scrolled .tw-3  { --t: 63%; --r: 22%; --w: 66px; --h: 100px; }
-body.layout-scrolled .tw-4  { --t: 78%; --l: 4%;  --w: 82px; --h: 124px; }
-body.layout-scrolled .tw-5  { --t: 76%; --r: 6%;  --w: 84px; --h: 126px; }
-body.layout-scrolled .tw-6  { --t: 89%; --l: 14%; --w: 70px; --h: 106px; }
-body.layout-scrolled .tw-7  { --t: 88%; --r: 15%; --w: 72px; --h: 108px; }
-body.layout-scrolled .tw-8  { --t: 95%; --l: 30%; --w: 60px; --h: 90px;  }
-body.layout-scrolled .tw-9  { --t: 94%; --r: 30%; --w: 62px; --h: 94px;  }
-body.layout-scrolled .tw-10 { --t: 59%; --l: 35%; --w: 56px; --h: 84px;  opacity: 0.32; }
-body.layout-scrolled .tw-11 { --t: 57.5%; --r: 36%; --w: 56px; --h: 84px;  opacity: 0.32; }
-body.layout-scrolled .tw-12 { --t: 71%; --l: 30%; --w: 58px; --h: 88px;  opacity: 0.32; }
-body.layout-scrolled .tw-13 { --t: 70%; --r: 31%; --w: 58px; --h: 88px;  opacity: 0.32; }
-body.layout-scrolled .tw-14 { --t: 82%; --l: 35%; --w: 54px; --h: 82px;  opacity: 1; }
-body.layout-scrolled .tw-15 { --t: 81%; --r: 36%; --w: 54px; --h: 82px;  opacity: 1; }
-body.layout-scrolled .tw-16 { --t: 55%; --l: 48%; --w: 50px; --h: 76px;  opacity: 1; }
-body.layout-scrolled .tw-17 { --t: 94%; --l: 48%; --w: 50px; --h: 76px;  opacity: 1; }
-body.layout-scrolled .tw-18 { --t: 83%; --l: 12%; --w: 52px; --h: 78px;  opacity: 1; }
-body.layout-scrolled .tw-19 { --t: 82%; --r: 13%; --w: 52px; --h: 78px;  opacity: 1; }
-body.layout-scrolled .tw-20 { --t: 67%; --l: 44%; --w: 48px; --h: 72px;  opacity: 1; }
-body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity: 1; }
+.tarot-wrap:hover { opacity: 1 !important; z-index: 150; }
+/* 翻开的牌要压过邻牌（包括正被悬停的那张），才像"被抽出来放在桌面上看" */
+.tarot-wrap.flipped { opacity: 1 !important; z-index: 260; }
+
+/* 悬停：一道斜向高光从牌面扫过 */
+.tarot-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(105deg,
+    transparent 30%,
+    rgba(255,255,255,0.62) 47%,
+    rgba(255,255,255,0.18) 58%,
+    transparent 72%);
+  background-size: 260% 100%;
+  background-position: 150% 0;
+  transition:
+    background-position 0.72s cubic-bezier(0.25, 0.6, 0.3, 1),
+    opacity 0.3s ease;
+}
+.tarot-wrap:hover::after {
+  opacity: 1;
+  background-position: -70% 0;
+}
+
+/* ========== 布局 1（滚动前）｜近景列在内、远景列在外，纵向半节距交错 ========== */
+/* 两侧各 11 张：近景列 5 张（--k:0，贴内容卡，大而实）， */
+/* 远景列 6 张（--k:1，再向外让开一个牌宽，小而淡）。 */
+/* 两列 x 区间不相交 + 同列相距 2 个槽位 ⇒ 任何视口下都不会互相压住。 */
+/* 最上一张落在 16%，正好避开 38vh 的顶部横幅。 */
+
+body.layout-top .tw-0  { --t: 38.2%; --l: var(--lx); --s: 1.00; --k: 0; opacity: 0.67; }
+body.layout-top .tw-1  { --t: 38.2%; --r: var(--rx); --s: 0.97; --k: 0; opacity: 0.66; }
+body.layout-top .tw-2  { --t: 67.8%; --l: var(--lx); --s: 1.02; --k: 0; opacity: 0.63; }
+body.layout-top .tw-3  { --t: 67.8%; --r: var(--rx); --s: 0.95; --k: 0; opacity: 0.62; }
+body.layout-top .tw-4  { --t: 23.4%; --l: var(--lx); --s: 0.98; --k: 0; opacity: 0.69; }
+body.layout-top .tw-5  { --t: 23.4%; --r: var(--rx); --s: 0.99; --k: 0; opacity: 0.68; }
+body.layout-top .tw-6  { --t: 53.0%; --l: var(--lx); --s: 0.96; --k: 0; opacity: 0.65; }
+body.layout-top .tw-7  { --t: 53.0%; --r: var(--rx); --s: 1.01; --k: 0; opacity: 0.64; }
+body.layout-top .tw-8  { --t: 82.6%; --l: var(--lx); --s: 0.94; --k: 0; opacity: 0.61; }
+body.layout-top .tw-9  { --t: 82.6%; --r: var(--rx); --s: 0.98; --k: 0; opacity: 0.60; }
+body.layout-top .tw-10 { --t: 16.0%; --l: var(--lx); --s: 0.60; --k: 1.25; opacity: 0.35; }
+body.layout-top .tw-11 { --t: 16.0%; --r: var(--rx); --s: 0.61; --k: 1.25; opacity: 0.34; }
+body.layout-top .tw-12 { --t: 30.8%; --l: var(--lx); --s: 0.62; --k: 1.25; opacity: 0.33; }
+body.layout-top .tw-13 { --t: 30.8%; --r: var(--rx); --s: 0.59; --k: 1.25; opacity: 0.32; }
+body.layout-top .tw-14 { --t: 45.6%; --l: var(--lx); --s: 0.58; --k: 1.25; opacity: 0.31; }
+body.layout-top .tw-15 { --t: 45.6%; --r: var(--rx); --s: 0.62; --k: 1.25; opacity: 0.31; }
+body.layout-top .tw-16 { --t: 60.4%; --l: var(--lx); --s: 0.63; --k: 1.25; opacity: 0.32; }
+body.layout-top .tw-17 { --t: 60.4%; --r: var(--rx); --s: 0.58; --k: 1.25; opacity: 0.30; }
+body.layout-top .tw-18 { --t: 75.2%; --l: var(--lx); --s: 0.59; --k: 1.25; opacity: 0.30; }
+body.layout-top .tw-19 { --t: 75.2%; --r: var(--rx); --s: 0.60; --k: 1.25; opacity: 0.29; }
+body.layout-top .tw-20 { --t: 90.0%; --l: var(--lx); --s: 0.61; --k: 1.25; opacity: 0.29; }
+body.layout-top .tw-21 { --t: 90.0%; --r: var(--rx); --s: 0.57; --k: 1.25; opacity: 0.28; }
+
+/* ========== 布局 2（滚动后）｜整体上移 4%，形成视差迟滞 ========== */
+/* 相对布局 1 只是统一上移，相对位置不变 —— 所以同样不会叠。 */
+/* 横幅滚出后，最上面几张正好接上原本被横幅挡住的区域。 */
+
+body.layout-scrolled .tw-0  { --t: 34.2%; --l: var(--lx); --s: 1.00; --k: 0; opacity: 0.67; }
+body.layout-scrolled .tw-1  { --t: 34.2%; --r: var(--rx); --s: 0.97; --k: 0; opacity: 0.66; }
+body.layout-scrolled .tw-2  { --t: 63.8%; --l: var(--lx); --s: 1.02; --k: 0; opacity: 0.63; }
+body.layout-scrolled .tw-3  { --t: 63.8%; --r: var(--rx); --s: 0.95; --k: 0; opacity: 0.62; }
+body.layout-scrolled .tw-4  { --t: 19.4%; --l: var(--lx); --s: 0.98; --k: 0; opacity: 0.69; }
+body.layout-scrolled .tw-5  { --t: 19.4%; --r: var(--rx); --s: 0.99; --k: 0; opacity: 0.68; }
+body.layout-scrolled .tw-6  { --t: 49.0%; --l: var(--lx); --s: 0.96; --k: 0; opacity: 0.65; }
+body.layout-scrolled .tw-7  { --t: 49.0%; --r: var(--rx); --s: 1.01; --k: 0; opacity: 0.64; }
+body.layout-scrolled .tw-8  { --t: 78.6%; --l: var(--lx); --s: 0.94; --k: 0; opacity: 0.61; }
+body.layout-scrolled .tw-9  { --t: 78.6%; --r: var(--rx); --s: 0.98; --k: 0; opacity: 0.60; }
+body.layout-scrolled .tw-10 { --t: 12.0%; --l: var(--lx); --s: 0.60; --k: 1.25; opacity: 0.35; }
+body.layout-scrolled .tw-11 { --t: 12.0%; --r: var(--rx); --s: 0.61; --k: 1.25; opacity: 0.34; }
+body.layout-scrolled .tw-12 { --t: 26.8%; --l: var(--lx); --s: 0.62; --k: 1.25; opacity: 0.33; }
+body.layout-scrolled .tw-13 { --t: 26.8%; --r: var(--rx); --s: 0.59; --k: 1.25; opacity: 0.32; }
+body.layout-scrolled .tw-14 { --t: 41.6%; --l: var(--lx); --s: 0.58; --k: 1.25; opacity: 0.31; }
+body.layout-scrolled .tw-15 { --t: 41.6%; --r: var(--rx); --s: 0.62; --k: 1.25; opacity: 0.31; }
+body.layout-scrolled .tw-16 { --t: 56.4%; --l: var(--lx); --s: 0.63; --k: 1.25; opacity: 0.32; }
+body.layout-scrolled .tw-17 { --t: 56.4%; --r: var(--rx); --s: 0.58; --k: 1.25; opacity: 0.30; }
+body.layout-scrolled .tw-18 { --t: 71.2%; --l: var(--lx); --s: 0.59; --k: 1.25; opacity: 0.30; }
+body.layout-scrolled .tw-19 { --t: 71.2%; --r: var(--rx); --s: 0.60; --k: 1.25; opacity: 0.29; }
+body.layout-scrolled .tw-20 { --t: 86.0%; --l: var(--lx); --s: 0.61; --k: 1.25; opacity: 0.29; }
+body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; opacity: 0.28; }
 
 /* ========== 内容区 ========== */
 .content-wrap {
@@ -206,11 +323,18 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   align-items: center;
   justify-content: center;
   padding: 3rem 1.5rem;
+  /* 关键：这个容器是全宽块级元素，背景透明但整宽度都在参与命中测试。
+     它 z-index 高于牌层，于是把两侧空档里的 hover / click 全吃掉了 ——
+     表现就是"点牌没反应、悬停动效也不生效"。
+     命中测试只看几何、不看透明度，所以必须显式让出指针事件，
+     再由下面真正的面板（以及牌层里的单张卡）逐块收回。 */
+  pointer-events: none;
 }
 
 .main-container {
   position: relative;
   z-index: 20;
+  pointer-events: auto;
   max-width: 920px;
   width: 100%;
   background: #fff;
@@ -226,7 +350,11 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   display: flex; align-items: center; justify-content: center;
   gap: 1.8rem; margin-bottom: 2.5rem; flex-wrap: wrap;
 }
-.header-logo { width: 120px; height: auto; }
+.header-logo {
+  width: 120px; height: auto;
+  transition: transform 0.42s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.header-logo:hover { transform: rotate(-5deg) scale(1.07); }
 .header-text { text-align: left; }
 
 .main-title {
@@ -240,7 +368,10 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   bottom: -0.5rem; left: 0;
   width: 80px; height: 4px;
   background: #e63946; border-radius: 2px;
+  transform-origin: left center;
+  transition: transform 0.46s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
+.main-title:hover::after { transform: scaleX(1.7); }
 .subhead-main {
   font-size: 1.15rem; font-weight: 500;
   color: #1a1a1f; line-height: 1.6;
@@ -254,7 +385,9 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   width: 100%; max-width: 720px; height: auto;
   display: block; margin: 0 auto 3rem;
   filter: drop-shadow(0 20px 40px rgba(60,40,90,0.18));
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
+.hero-image:hover { transform: translateY(-6px); }
 
 /* 步骤卡片 */
 .steps-grid {
@@ -262,16 +395,50 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   gap: 1.2rem; margin: 0 0 3.5rem;
 }
 .step-card {
+  position: relative;
+  overflow: hidden;
   background: #faf9fb;
   border: 1px solid rgba(0,0,0,0.06);
   border-radius: 1rem;
   padding: 2rem 1.6rem;
+  transition:
+    transform 0.36s cubic-bezier(0.2, 0.7, 0.3, 1),
+    border-color 0.36s ease,
+    background-color 0.36s ease,
+    box-shadow 0.36s ease;
 }
-.step-number { font-size: 2rem; font-weight: 700; line-height: 1; margin-bottom: 1.2rem; }
+/* 顶部的三色线，悬停时从左展开 */
+.step-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #e63946, #8b5cf6 55%, #d4a017);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.46s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.step-card:hover {
+  transform: translateY(-6px);
+  background: #fff;
+  border-color: rgba(230,57,70,0.26);
+  box-shadow: 0 20px 38px -20px rgba(60,30,90,0.3);
+}
+.step-card:hover::before { transform: scaleX(1); }
+
+.step-number {
+  font-size: 2rem; font-weight: 700; line-height: 1; margin-bottom: 1.2rem;
+  transition: transform 0.36s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
 .step-card:nth-child(1) .step-number { color: #e63946; }
 .step-card:nth-child(2) .step-number { color: #8b5cf6; }
 .step-card:nth-child(3) .step-number { color: #d4a017; }
-.step-card h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.6rem; color: #1a1a1f; }
+.step-card:hover .step-number { transform: translateY(-3px) scale(1.09); }
+.step-card h3 {
+  font-size: 1.15rem; font-weight: 600; margin-bottom: 0.6rem; color: #1a1a1f;
+  transition: color 0.36s ease;
+}
+.step-card:hover h3 { color: #c62b3a; }
 .step-card p { font-size: 0.9rem; color: #6b6578; line-height: 1.65; }
 
 /* 关于区域 */
@@ -291,7 +458,9 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   content: ''; position: absolute; bottom: 0; left: 50%;
   transform: translateX(-50%);
   width: 40px; height: 2px; background: #e63946; border-radius: 2px;
+  transition: transform 0.46s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
+.about-section h2:hover::after { transform: translateX(-50%) scaleX(1.9); }
 .about-section p {
   font-size: 1rem; color: #6b6578;
   max-width: 580px; margin: 0 auto 1.5rem; line-height: 1.8;
@@ -310,31 +479,147 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   width: 40px; height: 2px;
   background: rgba(230,57,70,0.6);
   margin: 2.5rem auto 0; border-radius: 2px;
+  transition: transform 0.46s cubic-bezier(0.2, 0.7, 0.3, 1), background-color 0.36s ease;
 }
+.divider:hover { transform: scaleX(1.9); background: rgba(230,57,70,0.95); }
 .quote-mark {
   font-size: 3rem; line-height: 1;
   color: rgba(230,57,70,0.2);
   font-family: Georgia, serif; user-select: none;
   margin-top: 1.5rem; display: inline-block; transform: scaleX(-1);
+  transition: transform 0.46s cubic-bezier(0.2, 0.7, 0.3, 1), color 0.36s ease;
+}
+.quote-mark:hover {
+  transform: scaleX(-1) translateY(-6px) rotate(-6deg);
+  color: rgba(230,57,70,0.45);
 }
 .explore-badge {
+  position: relative;
+  overflow: hidden;
   display: inline-flex; align-items: center; gap: 0.6rem;
   background: transparent;
   border: 1px solid rgba(230,57,70,0.4);
   padding: 0.7rem 1.6rem; border-radius: 60px;
   font-size: 0.85rem; color: #b04a6a;
   letter-spacing: 0.5px; margin-top: 2rem;
+  transition:
+    color 0.36s ease,
+    border-color 0.36s ease,
+    box-shadow 0.36s ease,
+    transform 0.36s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
-.explore-badge svg { width: 16px; height: 16px; stroke: currentColor; }
+/* 悬停：底色自左向右灌满 */
+.explore-badge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #e63946, #b8324a);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.44s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.explore-badge > * { position: relative; z-index: 1; }
+.explore-badge:hover {
+  color: #fff;
+  border-color: transparent;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px -12px rgba(230,57,70,0.62);
+}
+.explore-badge:hover::before { transform: scaleX(1); }
+.explore-badge svg {
+  width: 16px; height: 16px; stroke: currentColor;
+  transition: transform 0.36s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.explore-badge:hover svg { transform: translateX(4px); }
+
+/* ========== 音效开关 ========== */
+/* 默认开着（翻牌有声是体验的一半），但必须给用户一个随手关掉的地方 ——
+   所以按钮压得很低（opacity .55），不抢画面，鼠标靠近才真正亮起来。
+   这里刻意不用 backdrop-filter：整站为了那 3G 内存把 filter 类的东西清干净了，
+   一个 40px 的小圆点不值得再把合成层请回来。 */
+.sfx-toggle {
+  position: fixed; right: 18px; bottom: 18px; z-index: 400;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(214,166,74,0.38);
+  border-radius: 50%;
+  background: rgba(255,253,249,0.88);
+  color: #96702a;
+  cursor: pointer;
+  opacity: 0.55;
+  transition:
+    opacity 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.sfx-toggle:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+  border-color: rgba(214,166,74,0.85);
+  box-shadow: 0 12px 24px -12px rgba(140,100,30,0.6);
+}
+.sfx-toggle:focus-visible {
+  outline: 2px solid rgba(214,166,74,0.9);
+  outline-offset: 2px;
+  opacity: 1;
+}
+.sfx-toggle svg { width: 18px; height: 18px; display: block; }
+/* 两个图标互斥显示，靠 aria-pressed 切 —— 状态只有一份，不会和 JS 变量走失 */
+.sfx-toggle .ico-off { display: none; }
+.sfx-toggle[aria-pressed="true"] .ico-on  { display: none; }
+.sfx-toggle[aria-pressed="true"] .ico-off { display: block; }
+.sfx-toggle[aria-pressed="true"] { color: #a9a29a; border-color: rgba(0,0,0,0.14); }
+
+/* 视口收窄到两侧塞不下「近景列 + 间隔 + 远景列」时，收起远景列。
+   1320px 是算出来的临界点：再窄远景列就会贴到屏幕边缘。 */
+@media (max-width: 1320px) {
+  .tw-10,.tw-11,.tw-12,.tw-13,.tw-14,.tw-15,.tw-16,.tw-17,
+  .tw-18,.tw-19,.tw-20,.tw-21 { display: none; }
+}
 
 @media (max-width: 700px) {
   .header-top { flex-direction: column; gap: 1rem; }
   .header-text { text-align: center; }
   .main-title { font-size: 2.2rem; }
   .main-title::after { left: 50%; transform: translateX(-50%); }
+  .main-title:hover::after { transform: translateX(-50%) scaleX(1.7); }
   .steps-grid { grid-template-columns: 1fr; }
   .tw-10,.tw-11,.tw-12,.tw-13,.tw-14,.tw-15,.tw-16,.tw-17,
   .tw-18,.tw-19,.tw-20,.tw-21 { display: none; }
+}
+
+/* 触屏设备没有真正的 hover：关掉位移类反馈，避免点按后"卡住" */
+@media (hover: none) {
+  .step-card:hover { transform: none; box-shadow: none; background: #faf9fb; border-color: rgba(0,0,0,0.06); }
+  .step-card:hover::before { transform: scaleX(0); }
+  .step-card:hover .step-number { transform: none; }
+  .step-card:hover h3 { color: #1a1a1f; }
+  .explore-badge:hover { transform: none; box-shadow: none; }
+  .hero-image:hover { transform: none; }
+  /* 触屏没有 hover，开关永远等不到那一下"亮起来"，
+     于是它会一直停在 opacity .55，看起来像被禁用的。
+     这里直接给它常亮。 */
+  .sfx-toggle { opacity: 1; }
+  .sfx-toggle:hover { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarot-wrap { transition: none; }
+  .bg-logo, .bg-hero { will-change: auto; }
+  .tarot-wrap::after, .tarot-face, .tarot-card,
+  .step-card, .step-card::before, .step-number, .step-card h3,
+  .explore-badge, .explore-badge::before, .explore-badge svg,
+  .header-logo, .hero-image,
+    .main-title::after, .about-section h2::after,
+    .divider, .quote-mark, .sfx-toggle {
+    transition: none !important;
+  }
+  .tarot-wrap::after { display: none; }
+  /* 减少动态偏好下，音效默认保持开启（动效和声音是两件事），
+     但开关本身不再有位移反馈。 */
+  .sfx-toggle:hover { transform: none; }
 }
 </style>
 </head>
@@ -343,144 +628,143 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
 <div class="bg-pattern" aria-hidden="true"></div>
 <div class="bg-logo" aria-hidden="true"></div>
 <div class="bg-hero" aria-hidden="true"></div>
-<div class="bg-shapes" aria-hidden="true"></div>
 
 <header class="hero-banner">
-  <img src="./images/persona-30th-banner.png" alt="Persona 30th Anniversary">
+  <img src="./images/banner.webp" width="2560" height="971" alt="Persona 30th Anniversary" fetchpriority="high" decoding="async">
 </header>
 
 <div class="tarot-layer" id="tarotLayer">
 
-  <div class="tarot-wrap tw-0" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-14">
+  <div class="tarot-wrap tw-0" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="7" data-front="./images/tarot-00.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-00.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-1" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="13">
+  <div class="tarot-wrap tw-1" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="7" data-front="./images/tarot-01.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-01.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-2" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="8">
+  <div class="tarot-wrap tw-2" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="4" data-front="./images/tarot-02.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-02.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-3" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-10">
+  <div class="tarot-wrap tw-3" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-5" data-front="./images/tarot-03.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-03.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-4" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="6">
+  <div class="tarot-wrap tw-4" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="3" data-front="./images/tarot-04.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-04.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-5" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-7">
+  <div class="tarot-wrap tw-5" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-4" data-front="./images/tarot-05.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-05.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-6" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-6">
+  <div class="tarot-wrap tw-6" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-3" data-front="./images/tarot-06.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-06.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-7" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="7">
+  <div class="tarot-wrap tw-7" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="4" data-front="./images/tarot-07.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-07.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-8" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="-5">
+  <div class="tarot-wrap tw-8" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="-3" data-front="./images/tarot-08.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-08.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-9" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="5">
+  <div class="tarot-wrap tw-9" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="3" data-front="./images/tarot-09.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-09.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-10" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="9">
+  <div class="tarot-wrap tw-10" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="5" data-front="./images/tarot-10.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-10.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-11" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-9">
+  <div class="tarot-wrap tw-11" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-5" data-front="./images/tarot-11.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-11.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-12" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-4">
+  <div class="tarot-wrap tw-12" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-2" data-front="./images/tarot-12.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-12.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-13" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="4">
+  <div class="tarot-wrap tw-13" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="2" data-front="./images/tarot-13.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-13.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-14" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="6">
+  <div class="tarot-wrap tw-14" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="3" data-front="./images/tarot-14.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-14.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-15" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-7">
+  <div class="tarot-wrap tw-15" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-4" data-front="./images/tarot-15.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-15.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-16" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-20">
+  <div class="tarot-wrap tw-16" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-10" data-front="./images/tarot-16.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-16.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-17" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="15">
+  <div class="tarot-wrap tw-17" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="8" data-front="./images/tarot-17.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-17.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-18" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="8">
+  <div class="tarot-wrap tw-18" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="4" data-front="./images/tarot-18.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-18.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-19" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="-11">
+  <div class="tarot-wrap tw-19" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="-6" data-front="./images/tarot-19.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-19.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-20" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="19">
+  <div class="tarot-wrap tw-20" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="10" data-front="./images/tarot-20.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-20.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
-  <div class="tarot-wrap tw-21" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-17">
+  <div class="tarot-wrap tw-21" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-9" data-front="./images/tarot-21.webp">
     <div class="tarot-card">
       <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-21.png');"></div>
+      <div class="tarot-face tarot-front"></div>
     </div>
   </div>
 
@@ -491,7 +775,7 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
 
     <header class="header">
       <div class="header-top">
-        <img src="./images/p30-logo.png" alt="Persona 30th Anniversary Logo" class="header-logo">
+        <img src="./images/p30-logo.webp" width="240" height="101" alt="Persona 30th Anniversary Logo" class="header-logo" decoding="async">
         <div class="header-text">
           <h1 class="main-title">女神异闻录 · 人物人格测试</h1>
           <p class="subhead-main">在他们的故事里，遇见你的另一面。</p>
@@ -499,7 +783,7 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
         </div>
       </div>
 
-      <img src="./images/persona-characters.png" alt="女神异闻录系列角色群像" class="hero-image">
+      <img src="./images/persona-hero.webp" width="1440" height="816" alt="女神异闻录系列角色群像" class="hero-image" decoding="async">
     </header>
 
     <div class="steps-grid">
@@ -535,7 +819,7 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
         更像是借一个熟悉的<span class="accent-purple">角色</span>，换个角度看看自己。
       </p>
       <div class="explore-badge">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
         </svg>
         <span>等待你的选择</span>
@@ -545,54 +829,285 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
   </main>
 </div>
 
+<!-- 音效开关：默认开启，点击切静音，选择记在 localStorage -->
+<button class="sfx-toggle" id="sfxToggle" type="button"
+        aria-pressed="false" aria-label="关闭音效" title="关闭音效">
+  <svg class="ico-on" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+       stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z" />
+    <path d="M15.4 8.6a4.8 4.8 0 0 1 0 6.8" />
+    <path d="M18.2 5.8a8.8 8.8 0 0 1 0 12.4" />
+  </svg>
+  <svg class="ico-off" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+       stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z" />
+    <path d="m16 9.5 5 5M21 9.5l-5 5" />
+  </svg>
+</button>
+
 <script>
 (function () {
-  var wraps = document.querySelectorAll('.tarot-wrap');
+  'use strict';
+
+  var layerEl = document.getElementById('tarotLayer');
   var bgLogo = document.querySelector('.bg-logo');
   var bgHero = document.querySelector('.bg-hero');
   var banner = document.querySelector('.hero-banner');
 
-  var flippedSet = new Set();
+  // ---- 预先缓存 DOM 引用和数值，循环里不再查询 DOM / 解析 dataset ----
+  var cards = Array.prototype.map.call(
+    document.querySelectorAll('.tarot-wrap'),
+    function (wrap) {
+      // 静态起始倾角只在初始化时写一次 CSS 变量。
+      // 之后 .tarot-card 的 transform 全权交给 CSS（见样式表），
+      // 脚本不再逐帧覆写它 —— 翻牌因此不依赖 rAF 是否在跑。
+      var rot = parseFloat(wrap.dataset.rotate) || 0;
+      wrap.style.setProperty('--rot', rot + 'deg');
+      return {
+        el: wrap,
+        card: wrap.querySelector('.tarot-card'),
+        front: wrap.querySelector('.tarot-front'),
+        depth: parseFloat(wrap.dataset.depth) || 0.5,
+        floatAmp: parseFloat(wrap.dataset.float) || 1,
+        hoverScale: wrap.dataset.layer === 'front' ? 1.12
+                  : wrap.dataset.layer === 'mid' ? 1.10 : 1.08,
+        frontSrc: wrap.dataset.front || '',
+        frontApplied: false,
+        hovered: false,
+        flipped: false,
+        pressed: false,
+        // 悬停 / 点击动效的插值状态：放大 / 抬升 / 朝鼠标倾斜 / 点击弹跳
+        sCur: 1, lift: 0, tiltX: 0, tiltY: 0, pulse: 0,
+        rectX: 0, rectY: 0, rectW: 1, rectH: 1,
+        // 上次写入的值，用于跳过无变化的样式写入
+        lx: NaN, ly: NaN, ls: NaN, ltx: NaN, lty: NaN
+      };
+    }
+  );
+
+  // 卡片正面只在需要时应用：初始只下载共用的牌背
+  function ensureFront(item) {
+    if (item.frontApplied || !item.frontSrc) return;
+    item.frontApplied = true;
+    item.front.style.backgroundImage = 'url("' + item.frontSrc + '")';
+  }
+
   var targetX = 0, targetY = 0;
   var smoothX = 0, smoothY = 0;
+  // 指针的视口坐标，用于计算卡片内部的相对位置（倾斜方向）
+  var mouseX = 0, mouseY = 0;
   var idlePhase = 0;
   var lastMoveTime = performance.now();
   var IDLE_DELAY = 1200;
   var currentLayout = 'top';
+  var running = false;
+  var rafId = 0;
 
   window.addEventListener('mousemove', function (e) {
     var cx = window.innerWidth / 2;
     var cy = window.innerHeight / 2;
     targetX = (e.clientX - cx) / cx;
     targetY = (e.clientY - cy) / cy;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
     lastMoveTime = performance.now();
   }, { passive: true });
 
   window.addEventListener('mouseleave', function () {
     targetX = 0; targetY = 0;
-  });
+  }, { passive: true });
 
-  // 点击翻牌
-  wraps.forEach(function (wrap) {
-    wrap.addEventListener('click', function (e) {
+  // ==================== 音效 ====================
+  // 全部用 Web Audio 现场合成，不引入任何音频文件。
+  // 理由：站点传输体积刚压到 ~900KB，一个 mp3 动辄 30~80KB，占得比整张塔罗牌还多；
+  // 而"翻纸声"本质就是一段快速衰减的带通噪声，合成比采样更小、更可控，
+  // 也能让"悬停"和"翻牌"共用同一段噪声源，只在滤波和包络上分家。
+  var sfxCtx = null, sfxNoise = null, sfxReady = false;
+  var sfxMuted = false;
+  var lastTickAt = 0;
+
+  try { sfxMuted = localStorage.getItem('yys-sfx') === 'off'; } catch (err) {}
+
+  // 浏览器不允许在用户手势之前出声，所以 AudioContext 一直等到第一次
+  // 按下 / 触摸 / 按键才创建。在此之前悬停是静音的 —— 这是正常的，
+  // 用户第一次点牌时声音会准时出现。
+  // resume() 返回的是 Promise，极少数情况下会 reject（音频设备被独占等）。
+  // 不接住的话控制台会冒出 unhandled rejection，排查真问题时很干扰。
+  function sfxSafeResume() {
+    if (!sfxCtx || !sfxCtx.resume) return;
+    var p = sfxCtx.resume();
+    if (p && p.catch) p.catch(function () {});
+  }
+
+  function sfxUnlock() {
+    if (sfxCtx) {
+      if (sfxCtx.state === 'suspended') sfxSafeResume();
+      return;
+    }
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try { sfxCtx = new AC(); } catch (err) { sfxCtx = null; return; }
+
+    // 噪声缓冲只生成一次（0.4s 白噪），之后每次发声都是复用它，
+    // 避免每次点击都现算几万个随机数造成卡顿。
+    var n = Math.floor(sfxCtx.sampleRate * 0.4);
+    sfxNoise = sfxCtx.createBuffer(1, n, sfxCtx.sampleRate);
+    var d = sfxNoise.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+
+    sfxReady = true;
+    sfxSafeResume();
+  }
+
+  // 噪声 → 带通 → 增益包络，是这两个音效共用的骨架
+  function sfxNoiseBurst(freqFrom, freqTo, q, peak, dur, rate, delay) {
+    var ac = sfxCtx, t = ac.currentTime + (delay || 0);
+    var src = ac.createBufferSource();
+    src.buffer = sfxNoise;
+    if (rate) src.playbackRate.value = rate;
+    var bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = q;
+    bp.frequency.setValueAtTime(freqFrom, t);
+    if (freqTo && freqTo !== freqFrom) {
+      // 频率扫动是"纸牌被掀起"的关键：低→高，像牌面从牌堆里被抽离
+      bp.frequency.exponentialRampToValueAtTime(freqTo, t + dur * 0.7);
+    }
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.012, dur * 0.3));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(g); g.connect(ac.destination);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
+  // 翻牌：两段叠在一起 ——
+  //   ① 900→3400Hz 的扫频噪声 = 牌被掀起来的"唰"
+  //   ② 230→118Hz 的弱正弦   = 牌落定的那一下"闷"
+  // 只有①会显得像撕纸，只有②又不像牌；两个一起才有"翻"的重量。
+  function sfxFlip() {
+    if (!sfxReady || sfxMuted) return;
+    sfxNoiseBurst(900, 3400, 1.1, 0.17, 0.16, 1, 0);
+
+    var ac = sfxCtx, t = ac.currentTime + 0.04;
+    var o = ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(230, t);
+    o.frequency.exponentialRampToValueAtTime(118, t + 0.11);
+    var og = ac.createGain();
+    og.gain.setValueAtTime(0.0001, t);
+    og.gain.exponentialRampToValueAtTime(0.075, t + 0.022);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(og); og.connect(ac.destination);
+    o.start(t); o.stop(t + 0.18);
+  }
+
+  // 悬停：只有 50ms 的高频碎响，音量压到 0.05 ——
+  // 目的是让人"听见牌的存在"，而不是听见音效本身。
+  function sfxTick() {
+    if (!sfxReady || sfxMuted) return;
+    var now = performance.now();
+    if (now - lastTickAt < 70) return;   // 快速横扫时别连成一片噪声
+    lastTickAt = now;
+    sfxNoiseBurst(2600, 2600, 1.6, 0.05, 0.05, 1.6, 0);
+  }
+
+  // 开关
+  var sfxBtn = document.getElementById('sfxToggle');
+  function applySfxUI() {
+    if (!sfxBtn) return;
+    var label = sfxMuted ? '开启音效' : '关闭音效';
+    sfxBtn.setAttribute('aria-pressed', sfxMuted ? 'true' : 'false');
+    sfxBtn.setAttribute('aria-label', label);
+    sfxBtn.setAttribute('title', label);
+  }
+  applySfxUI();
+  if (sfxBtn) {
+    sfxBtn.addEventListener('click', function () {
+      sfxUnlock();                        // 这次点击本身就是解锁时机
+      sfxMuted = !sfxMuted;
+      applySfxUI();
+      try { localStorage.setItem('yys-sfx', sfxMuted ? 'off' : 'on'); } catch (err) {}
+      if (!sfxMuted) sfxTick();           // 重新开启时给一声确认
+    });
+  }
+
+  // 首次手势解锁（捕获阶段挂，保证早于卡片自身的 click 处理）
+  function sfxFirstGesture() {
+    // 静音状态下不急着建 AudioContext —— 省一个常驻的音频上下文。
+    // 之后用户点开关打开音效时，那次点击本身就是手势，照样来得及解锁。
+    if (!sfxMuted) sfxUnlock();
+    window.removeEventListener('pointerdown', sfxFirstGesture, true);
+    window.removeEventListener('keydown', sfxFirstGesture, true);
+    window.removeEventListener('touchstart', sfxFirstGesture, true);
+  }
+  window.addEventListener('pointerdown', sfxFirstGesture, true);
+  window.addEventListener('keydown', sfxFirstGesture, true);
+  window.addEventListener('touchstart', sfxFirstGesture, true);
+
+  // 切到后台就把音频线程挂起，回到前台再唤醒：
+  // 看不见的标签页不该继续占着音频通道（和"离屏即停 rAF"是同一个思路）。
+  document.addEventListener('visibilitychange', function () {
+    if (!sfxCtx) return;
+    if (document.hidden) {
+      if (sfxCtx.suspend) {
+        var sp = sfxCtx.suspend();
+        if (sp && sp.catch) sp.catch(function () {});
+      }
+    } else if (!sfxMuted && sfxCtx.state === 'suspended') {
+      sfxSafeResume();
+    }
+  }, { passive: true });
+
+  // 点击翻牌 + 悬停预热（用事件替代每帧 matches(':hover')）
+  cards.forEach(function (item) {
+    item.el.addEventListener('mouseenter', function (e) {
+      item.hovered = true;
+      // 只在进入时读一次几何信息，之后每帧只用缓存值算倾斜，不触发重排
+      var r = item.el.getBoundingClientRect();
+      item.rectX = r.left; item.rectY = r.top;
+      item.rectW = r.width || 1; item.rectH = r.height || 1;
+      // 触屏等没有 mousemove 的场景，用进入事件的坐标兜底
+      if (e.clientX) { mouseX = e.clientX; mouseY = e.clientY; }
+      ensureFront(item);
+      sfxTick();
+    }, { passive: true });
+
+    item.el.addEventListener('mouseleave', function () {
+      item.hovered = false;
+    }, { passive: true });
+
+    // 按下时轻微回压，松开弹回
+    item.el.addEventListener('mousedown', function () {
+      item.pressed = true;
+    }, { passive: true });
+
+    item.el.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (flippedSet.has(wrap)) {
-        flippedSet.delete(wrap);
-        wrap.classList.remove('flipped');
-      } else {
-        flippedSet.add(wrap);
-        wrap.classList.add('flipped');
+      // 正面在首次翻开时才写入，首屏只需下载共用的牌背
+      ensureFront(item);
+      item.flipped = !item.flipped;
+      item.pulse = 1;                                  // 触发一次翻开弹跳
+      item.el.classList.toggle('flipped', item.flipped);
+      sfxFlip();
+      // 触屏上的"触感"：8ms 的一下轻震，和音效共用一个开关
+      if (!sfxMuted && navigator.vibrate) {
+        try { navigator.vibrate(8); } catch (err) {}
       }
     });
   });
 
+  // 指针在卡片外松开也要复位，避免"卡住按下状态"
+  window.addEventListener('mouseup', function () {
+    for (var i = 0; i < cards.length; i++) cards[i].pressed = false;
+  }, { passive: true });
+
   // 布局切换
+  var lastLayoutCheck = 0;
   function updateLayout() {
     if (!banner) return;
-    var bannerH = banner.offsetHeight;
-    var y = window.scrollY || window.pageYOffset;
-    var shouldScroll = y > bannerH * 0.7;
-    var next = shouldScroll ? 'scrolled' : 'top';
+    var next = (window.scrollY || window.pageYOffset) > banner.offsetHeight * 0.7
+      ? 'scrolled' : 'top';
     if (next !== currentLayout) {
       currentLayout = next;
       document.body.classList.toggle('layout-top', next === 'top');
@@ -601,12 +1116,38 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
       lastMoveTime = performance.now();
     }
   }
-  window.addEventListener('scroll', updateLayout, { passive: true });
-  window.addEventListener('resize', updateLayout);
+  window.addEventListener('scroll', function () {
+    // 节流到 100ms，避免每次滚动都读取 offsetHeight 触发布局
+    var now = performance.now();
+    if (now - lastLayoutCheck < 100) return;
+    lastLayoutCheck = now;
+    updateLayout();
+  }, { passive: true });
+  window.addEventListener('resize', updateLayout, { passive: true });
   updateLayout();
 
-  // 动画循环
-  function animate() {
+  // ---- 牌层高度 = 正文真实高度 ----
+  // 层高写死 200vh，而页面实际约 250vh，底部那一截一张牌都没有，
+  // 是"背景空"的一半原因。这里直接量 banner + 内容区的总高写进 --layer-h，
+  // 槽位百分比就永远铺满整页；层是绝对定位、不参与布局，所以不会回调递归。
+  function syncLayerHeight() {
+    var cwEl = document.querySelector('.content-wrap');
+    var h = 0;
+    if (banner) h = Math.max(h, banner.offsetTop + banner.offsetHeight);
+    if (cwEl)   h = Math.max(h, cwEl.offsetTop + cwEl.offsetHeight);
+    h = Math.max(h, window.innerHeight);
+    document.documentElement.style.setProperty('--layer-h', h + 'px');
+  }
+  syncLayerHeight();
+  window.addEventListener('load', syncLayerHeight, { passive: true });
+  window.addEventListener('resize', syncLayerHeight, { passive: true });
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(syncLayerHeight).observe(
+      document.querySelector('.content-wrap') || document.body);
+  }
+
+  // ---- 动画循环 ----
+  function frame() {
     var now = performance.now();
     var isIdle = now - lastMoveTime > IDLE_DELAY;
 
@@ -619,56 +1160,125 @@ body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity
     smoothX += (targetX - smoothX) * 0.06;
     smoothY += (targetY - smoothY) * 0.06;
 
-    wraps.forEach(function (wrap) {
-      var depth = parseFloat(wrap.dataset.depth) || 0.5;
-      var floatAmp = parseFloat(wrap.dataset.float) || 1;
-      var isHovered = wrap.matches(':hover');
-      var isFlipped = flippedSet.has(wrap);
-      var baseRotate = parseFloat(wrap.dataset.rotate) || 0;
+    for (var i = 0; i < cards.length; i++) {
+      var item = cards[i];
+      var d = item.depth;
 
-      var offsetX = -smoothX * 18 * depth;
-      var offsetY = -smoothY * 14 * depth;
-      var rotY = smoothX * 6 * depth;
-      var rotX = -smoothY * 5 * depth;
-      var floatY = isIdle
-        ? Math.sin(idlePhase * 1.8 + depth * 4) * 6 * floatAmp
-        : Math.sin(idlePhase * 1.0 + depth * 3) * 2 * floatAmp;
-
-      // 外层：位移 + 缩放
-      wrap.style.setProperty('--px', offsetX + 'px');
-      wrap.style.setProperty('--py', (offsetY + floatY) + 'px');
-
-      var hoverScale = 1;
-      if (isHovered) {
-        var layer = wrap.dataset.layer;
-        if (layer === 'front') hoverScale = 1.12;
-        else if (layer === 'mid') hoverScale = 1.10;
-        else hoverScale = 1.08;
+      // ---- 悬停细节：朝指针方向倾斜 ----
+      // 用进入时缓存的卡片矩形算归一化位置，避免每帧读 DOM。
+      // 指针偏向哪一边，那一边就微微抬起（像用指尖顶起牌角），
+      // 而不是被指针推倒——配合抬升和扫光才是一套"拿起来看"的动作。
+      var ttx = 0, tty = 0;
+      if (item.hovered && !item.flipped) {
+        var nx = (mouseX - item.rectX) / item.rectW * 2 - 1;
+        var ny = (mouseY - item.rectY) / item.rectH * 2 - 1;
+        nx = nx < -1 ? -1 : (nx > 1 ? 1 : nx);
+        ny = ny < -1 ? -1 : (ny > 1 ? 1 : ny);
+        ttx = ny * 14;    // 指针偏下 → 下边缘向前抬起
+        tty = -nx * 16;   // 指针偏右 → 右边缘向前抬起
       }
-      var flipScale = isFlipped ? 1.06 : 1;
-      wrap.style.setProperty('--scale', hoverScale * flipScale);
 
-      // 内层：3D 倾斜 + 翻转
-      var card = wrap.querySelector('.tarot-card');
-      if (card) {
-        var flipAngle = isFlipped ? 180 : 0;
-        card.style.transform =
-          'rotate(' + baseRotate + 'deg) ' +
-          'rotateX(' + rotX + 'deg) ' +
-          'rotateY(' + (rotY + flipAngle) + 'deg)';
+      // 点击弹跳：一个快速衰减的额外缩放，让"翻"这个动作有手感
+      item.pulse *= 0.86;
+      if (item.pulse < 0.01) item.pulse = 0;
+
+      // 翻开的牌在 CSS 层已经有了"上浮 + 沿 Z 推进"的放大，
+      // 这里不再叠加（叠乘会大得压到邻牌），只保留按下时的一次弹跳。
+      var sTarget = (item.hovered && !item.flipped ? item.hoverScale : 1)
+                  + item.pulse * 0.12;
+      if (item.pressed) sTarget *= 0.94;
+      var liftTarget = item.hovered ? (item.pressed ? 5 : 8) : 0;
+
+      // 全部走插值，让进入 / 离开都是连续过渡而非硬切换
+      item.tiltX += (ttx - item.tiltX) * 0.16;
+      item.tiltY += (tty - item.tiltY) * 0.16;
+      item.lift += (liftTarget - item.lift) * 0.18;
+      item.sCur += (sTarget - item.sCur) * 0.18;
+
+      var tiltX = round1(item.tiltX - smoothY * 5 * d);   // 悬停倾斜 + 视差，合成到 wrap 一层
+      var tiltY = round1(item.tiltY);
+      var px = round2(-smoothX * 18 * d);
+      var py = round2(-smoothY * 14 * d - item.lift
+        + (isIdle
+            ? Math.sin(idlePhase * 1.8 + d * 4) * 6 * item.floatAmp
+            : Math.sin(idlePhase * 1.0 + d * 3) * 2 * item.floatAmp));
+      var scale = round3(item.sCur);
+
+      // 全都没变就跳过写入 —— 收敛后每帧零 DOM 操作。
+      // 翻转角度不在这里判断：它由 CSS 类驱动，与本循环无关。
+      if (px === item.lx && py === item.ly && scale === item.ls &&
+          tiltX === item.ltx && tiltY === item.lty) {
+        continue;
       }
-    });
+
+      item.lx = px; item.ly = py; item.ls = scale;
+      item.ltx = tiltX; item.lty = tiltY;
+      item.el.style.transform =
+        'translate3d(' + px + 'px,' + py + 'px,0) scale(' + scale + ')' +
+        (tiltX || tiltY
+          ? ' rotateX(' + tiltX + 'deg) rotateY(' + tiltY + 'deg)'
+          : '');
+    }
 
     if (bgLogo) {
-      bgLogo.style.transform = 'rotate(-8deg) translate3d(' + (-smoothX * 8) + 'px,' + (-smoothY * 6) + 'px,0)';
+      bgLogo.style.transform =
+        'rotate(-8deg) translate3d(' + round2(-smoothX * 8) + 'px,' + round2(-smoothY * 6) + 'px,0)';
     }
     if (bgHero) {
-      bgHero.style.transform = 'rotate(6deg) translate3d(' + (-smoothX * 10) + 'px,' + (-smoothY * 8) + 'px,0)';
+      bgHero.style.transform =
+        'rotate(6deg) translate3d(' + round2(-smoothX * 10) + 'px,' + round2(-smoothY * 8) + 'px,0)';
     }
 
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(frame);
   }
-  animate();
+
+  function round2(v) { return Math.round(v * 100) / 100; }
+  function round1(v) { return Math.round(v * 10) / 10; }
+  function round3(v) { return Math.round(v * 1000) / 1000; }
+
+  function start() {
+    if (running) return;
+    running = true;
+    rafId = requestAnimationFrame(frame);
+  }
+  function stop() {
+    if (!running) return;
+    running = false;
+    cancelAnimationFrame(rafId);
+  }
+
+  // 页面不可见、或塔罗牌层离开视口时，完全停止动画循环
+  var heroVisible = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stop();
+    else if (heroVisible) start();
+  }, { passive: true });
+
+  if (layerEl && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      heroVisible = entries[0].isIntersecting;
+      if (heroVisible && !document.hidden) start();
+      else stop();
+    }, { rootMargin: '100px' }).observe(layerEl);
+  }
+
+  start();
+
+  // ---- 首屏之后，空闲时把卡片正面预取进缓存，首次翻牌无需等待 ----
+  // 这里只预热浏览器缓存，不写 background-image，避免一上来就解码 22 张图
+  function warmup() {
+    cards.forEach(function (item) {
+      if (!item.frontSrc) return;
+      var img = new Image();
+      img.decoding = 'async';
+      img.src = item.frontSrc;
+    });
+  }
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(warmup, { timeout: 3000 });
+  } else {
+    window.addEventListener('load', function () { setTimeout(warmup, 1200); });
+  }
 })();
 </script>
 </body>
