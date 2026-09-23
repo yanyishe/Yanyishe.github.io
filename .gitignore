@@ -20,3 +20,7 @@ _*.html
 
 # 改版前的单文件备份
 *.bak-*
+
+# 手工上传用的暂存目录：只有 index.html + images/*.webp 的副本，
+# 给"无法用 git push、只能在 GitHub 网页上传"的场景用。它是副本，不进仓库。
+publish/
