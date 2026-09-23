@@ -1,1 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>女神异闻录 · 人物人格测试</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
+body {
+  background: #f5f3f0;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(180,140,200,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(230,100,130,0.08) 0%, transparent 60%);
+  background-attachment: fixed;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #1a1a1f;
+  line-height: 1.6;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ========== 顶部横幅 ========== */
+.hero-banner {
+  position: relative;
+  width: 100%;
+  background: #fff;
+  border-bottom: 3px solid #e63946;
+  z-index: 3;
+  overflow: hidden;
+}
+.hero-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 38vh;
+  object-fit: cover;
+}
+
+/* ========== 背景装饰 ========== */
+.bg-pattern {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(100,80,140,0.10) 1px, transparent 1.5px),
+    repeating-linear-gradient(45deg, transparent 0, transparent 120px,
+      rgba(140,100,200,0.035) 120px, rgba(140,100,200,0.035) 121px);
+  background-size: 36px 36px, 100% 100%;
+}
+.bg-logo {
+  position: fixed; bottom: -80px; left: -100px;
+  width: 480px; height: 480px;
+  background-image: url('./images/p30-logo.png');
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  opacity: 0.04; z-index: 0; pointer-events: none;
+  transform: rotate(-8deg);
+  filter: grayscale(0.2);
+}
+.bg-hero {
+  position: fixed; bottom: -100px; right: -120px;
+  width: 620px; height: 620px;
+  background-image: url('./images/persona-characters.png');
+  background-size: contain; background-repeat: no-repeat; background-position: center;
+  opacity: 0.05; z-index: 0; pointer-events: none;
+  transform: rotate(6deg);
+  filter: grayscale(0.3) blur(0.5px);
+}
+.bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.bg-shapes::before {
+  content: ''; position: absolute; top: 45%; right: 6%;
+  width: 180px; height: 180px;
+  border: 1px solid rgba(230,57,70,0.10); border-radius: 50%;
+}
+.bg-shapes::after {
+  content: ''; position: absolute; bottom: 10%; left: 5%;
+  width: 120px; height: 120px;
+  border: 1px solid rgba(124,58,237,0.10); border-radius: 50%;
+}
+
+/* ========== 塔罗牌层 ========== */
+.tarot-layer {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 200vh;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  perspective: 1600px;
+}
+
+.tarot-wrap {
+  position: absolute;
+  top: var(--t, auto);
+  left: var(--l, auto);
+  right: var(--r, auto);
+  bottom: var(--b, auto);
+  width: var(--w, 90px);
+  height: var(--h, 136px);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 100;
+  --px: 0; --py: 0; --scale: 1;
+  transform: translate3d(var(--px), var(--py), 0) scale(var(--scale));
+  transition:
+    top 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    left 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    right 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    bottom 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    width 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    height 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.8s ease, filter 0.8s ease;
+}
+
+.tarot-card {
+  position: relative;
+  width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  border-radius: 6px;
+  transition: transform 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tarot-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #1a1a2e;
+  box-shadow: 0 8px 24px rgba(40,30,80,0.25);
+}
+
+.tarot-back {
+  background-image: url('./images/tarot-back.png');
+  background-size: cover;
+  background-position: center;
+}
+.tarot-front {
+  transform: rotateY(180deg);
+  background-size: cover;
+  background-position: center;
+}
+
+.tarot-wrap[data-layer="back"]  { opacity: 0.32; filter: blur(0.8px) saturate(0.8); }
+.tarot-wrap[data-layer="mid"]   { opacity: 0.6; }
+.tarot-wrap[data-layer="front"] { opacity: 0.82; }
+
+.tarot-wrap:hover { opacity: 1 !important; filter: none !important; }
+.tarot-wrap.flipped { opacity: 1 !important; filter: none !important; z-index: 200; }
+
+/* ========== 布局 1（顶部） ========== */
+body.layout-top .tw-0  { --t: 25%; --l: 1.5%; --w: 88px; --h: 132px; }
+body.layout-top .tw-1  { --t: 24%; --r: 1.5%; --w: 86px; --h: 130px; }
+body.layout-top .tw-2  { --t: 36%; --l: 2%; --w: 90px; --h: 136px; }
+body.layout-top .tw-3  { --t: 35%; --r: 2%; --w: 88px; --h: 132px; }
+body.layout-top .tw-4  { --t: 22%; --l: 8%; --w: 68px; --h: 102px; }
+body.layout-top .tw-5  { --t: 21%; --r: 8%; --w: 68px; --h: 102px; }
+body.layout-top .tw-6  { --t: 43%; --l: 9%; --w: 66px; --h: 100px; }
+body.layout-top .tw-7  { --t: 42%; --r: 9%; --w: 66px; --h: 100px; }
+body.layout-top .tw-8  { --t: 44%; --l: 26%; --w: 64px; --h: 96px; }
+body.layout-top .tw-9  { --t: 43.5%; --r: 26%; --w: 64px; --h: 96px; }
+body.layout-top .tw-10 { --t: 22.5%; --l: 20%; --w: 52px; --h: 78px; }
+body.layout-top .tw-11 { --t: 22%; --r: 20%; --w: 52px; --h: 78px; }
+body.layout-top .tw-12 { --t: 23.5%; --l: 32%; --w: 48px; --h: 72px; }
+body.layout-top .tw-13 { --t: 23%; --r: 32%; --w: 48px; --h: 72px; }
+body.layout-top .tw-14 { --t: 48%; --l: 20%; --w: 54px; --h: 82px; opacity: 0; }
+body.layout-top .tw-15 { --t: 47.5%; --r: 20%; --w: 54px; --h: 82px; opacity: 0; }
+body.layout-top .tw-16 { --t: 49%; --l: 48%; --w: 50px; --h: 76px; opacity: 0; }
+body.layout-top .tw-17 { --t: 49%; --r: 48%; --w: 50px; --h: 76px; opacity: 0; }
+body.layout-top .tw-18 { --t: 45%; --l: 12%; --w: 52px; --h: 78px; opacity: 0; }
+body.layout-top .tw-19 { --t: 44.5%; --r: 13%; --w: 52px; --h: 78px; opacity: 0; }
+body.layout-top .tw-20 { --t: 46%; --l: 44%; --w: 48px; --h: 72px; opacity: 0; }
+body.layout-top .tw-21 { --t: 45.5%; --r: 45%; --w: 48px; --h: 72px; opacity: 0; }
+
+/* ========== 布局 2（滚动后） ========== */
+body.layout-scrolled .tw-0  { --t: 56%; --l: 6%;  --w: 78px; --h: 118px; }
+body.layout-scrolled .tw-1  { --t: 54%; --r: 10%; --w: 82px; --h: 124px; }
+body.layout-scrolled .tw-2  { --t: 65%; --l: 20%; --w: 64px; --h: 96px;  }
+body.layout-scrolled .tw-3  { --t: 63%; --r: 22%; --w: 66px; --h: 100px; }
+body.layout-scrolled .tw-4  { --t: 78%; --l: 4%;  --w: 82px; --h: 124px; }
+body.layout-scrolled .tw-5  { --t: 76%; --r: 6%;  --w: 84px; --h: 126px; }
+body.layout-scrolled .tw-6  { --t: 89%; --l: 14%; --w: 70px; --h: 106px; }
+body.layout-scrolled .tw-7  { --t: 88%; --r: 15%; --w: 72px; --h: 108px; }
+body.layout-scrolled .tw-8  { --t: 95%; --l: 30%; --w: 60px; --h: 90px;  }
+body.layout-scrolled .tw-9  { --t: 94%; --r: 30%; --w: 62px; --h: 94px;  }
+body.layout-scrolled .tw-10 { --t: 59%; --l: 35%; --w: 56px; --h: 84px;  opacity: 0.32; }
+body.layout-scrolled .tw-11 { --t: 57.5%; --r: 36%; --w: 56px; --h: 84px;  opacity: 0.32; }
+body.layout-scrolled .tw-12 { --t: 71%; --l: 30%; --w: 58px; --h: 88px;  opacity: 0.32; }
+body.layout-scrolled .tw-13 { --t: 70%; --r: 31%; --w: 58px; --h: 88px;  opacity: 0.32; }
+body.layout-scrolled .tw-14 { --t: 82%; --l: 35%; --w: 54px; --h: 82px;  opacity: 1; }
+body.layout-scrolled .tw-15 { --t: 81%; --r: 36%; --w: 54px; --h: 82px;  opacity: 1; }
+body.layout-scrolled .tw-16 { --t: 55%; --l: 48%; --w: 50px; --h: 76px;  opacity: 1; }
+body.layout-scrolled .tw-17 { --t: 94%; --l: 48%; --w: 50px; --h: 76px;  opacity: 1; }
+body.layout-scrolled .tw-18 { --t: 83%; --l: 12%; --w: 52px; --h: 78px;  opacity: 1; }
+body.layout-scrolled .tw-19 { --t: 82%; --r: 13%; --w: 52px; --h: 78px;  opacity: 1; }
+body.layout-scrolled .tw-20 { --t: 67%; --l: 44%; --w: 48px; --h: 72px;  opacity: 1; }
+body.layout-scrolled .tw-21 { --t: 66%; --r: 45%; --w: 48px; --h: 72px;  opacity: 1; }
+
+/* ========== 内容区 ========== */
+.content-wrap {
+  position: relative;
+  z-index: 2;
+  min-height: calc(100vh - 38vh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.main-container {
+  position: relative;
+  z-index: 20;
+  max-width: 920px;
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 1.5rem;
+  padding: 3rem 3rem 4rem;
+  box-shadow: 0 30px 60px -30px rgba(40,20,60,0.15);
+}
+
+/* 头部 */
+.header { text-align: center; margin-bottom: 3rem; }
+.header-top {
+  display: flex; align-items: center; justify-content: center;
+  gap: 1.8rem; margin-bottom: 2.5rem; flex-wrap: wrap;
+}
+.header-logo { width: 120px; height: auto; }
+.header-text { text-align: left; }
+
+.main-title {
+  font-size: 3rem; font-weight: 900;
+  letter-spacing: -0.03em; line-height: 1.1;
+  color: #e63946; margin: 0 0 1rem;
+  position: relative;
+}
+.main-title::after {
+  content: ''; position: absolute;
+  bottom: -0.5rem; left: 0;
+  width: 80px; height: 4px;
+  background: #e63946; border-radius: 2px;
+}
+.subhead-main {
+  font-size: 1.15rem; font-weight: 500;
+  color: #1a1a1f; line-height: 1.6;
+  margin: 0 0 0.5rem;
+}
+.subhead-sub {
+  font-size: 0.9rem; font-weight: 400;
+  color: #9b8fb0; line-height: 1.6; margin: 0;
+}
+.hero-image {
+  width: 100%; max-width: 720px; height: auto;
+  display: block; margin: 0 auto 3rem;
+  filter: drop-shadow(0 20px 40px rgba(60,40,90,0.18));
+}
+
+/* 步骤卡片 */
+.steps-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 1.2rem; margin: 0 0 3.5rem;
+}
+.step-card {
+  background: #faf9fb;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 1rem;
+  padding: 2rem 1.6rem;
+}
+.step-number { font-size: 2rem; font-weight: 700; line-height: 1; margin-bottom: 1.2rem; }
+.step-card:nth-child(1) .step-number { color: #e63946; }
+.step-card:nth-child(2) .step-number { color: #8b5cf6; }
+.step-card:nth-child(3) .step-number { color: #d4a017; }
+.step-card h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: 0.6rem; color: #1a1a1f; }
+.step-card p { font-size: 0.9rem; color: #6b6578; line-height: 1.65; }
+
+/* 关于区域 */
+.about-section {
+  background: #faf9fb;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 1rem;
+  padding: 3rem 2.5rem;
+  text-align: center;
+}
+.about-section h2 {
+  font-size: 1.5rem; font-weight: 600; color: #1a1a1f;
+  margin-bottom: 2rem; position: relative; display: inline-block;
+  padding-bottom: 1rem;
+}
+.about-section h2::after {
+  content: ''; position: absolute; bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 40px; height: 2px; background: #e63946; border-radius: 2px;
+}
+.about-section p {
+  font-size: 1rem; color: #6b6578;
+  max-width: 580px; margin: 0 auto 1.5rem; line-height: 1.8;
+}
+.about-section p:last-child {
+  margin-bottom: 0; color: #8a8496;
+  font-style: italic; font-size: 0.95rem;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding-top: 2rem; margin-top: 1rem;
+}
+.accent-crimson { color: #d62839; font-weight: 600; }
+.accent-blue    { color: #3b7bbf; font-weight: 600; }
+.accent-yellow  { color: #b8860b; font-weight: 600; }
+.accent-purple  { color: #7c3aed; font-weight: 600; }
+.divider {
+  width: 40px; height: 2px;
+  background: rgba(230,57,70,0.6);
+  margin: 2.5rem auto 0; border-radius: 2px;
+}
+.quote-mark {
+  font-size: 3rem; line-height: 1;
+  color: rgba(230,57,70,0.2);
+  font-family: Georgia, serif; user-select: none;
+  margin-top: 1.5rem; display: inline-block; transform: scaleX(-1);
+}
+.explore-badge {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  background: transparent;
+  border: 1px solid rgba(230,57,70,0.4);
+  padding: 0.7rem 1.6rem; border-radius: 60px;
+  font-size: 0.85rem; color: #b04a6a;
+  letter-spacing: 0.5px; margin-top: 2rem;
+}
+.explore-badge svg { width: 16px; height: 16px; stroke: currentColor; }
+
+@media (max-width: 700px) {
+  .header-top { flex-direction: column; gap: 1rem; }
+  .header-text { text-align: center; }
+  .main-title { font-size: 2.2rem; }
+  .main-title::after { left: 50%; transform: translateX(-50%); }
+  .steps-grid { grid-template-columns: 1fr; }
+  .tw-10,.tw-11,.tw-12,.tw-13,.tw-14,.tw-15,.tw-16,.tw-17,
+  .tw-18,.tw-19,.tw-20,.tw-21 { display: none; }
+}
+</style>
+</head>
+<body class="layout-top">
+
+<div class="bg-pattern" aria-hidden="true"></div>
+<div class="bg-logo" aria-hidden="true"></div>
+<div class="bg-hero" aria-hidden="true"></div>
+<div class="bg-shapes" aria-hidden="true"></div>
+
+<header class="hero-banner">
+  <img src="./images/persona-30th-banner.png" alt="Persona 30th Anniversary">
+</header>
+
+<div class="tarot-layer" id="tarotLayer">
+
+  <div class="tarot-wrap tw-0" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-14">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-00.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-1" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="13">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-01.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-2" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="8">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-02.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-3" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-10">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-03.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-4" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="6">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-04.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-5" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-7">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-05.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-6" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-6">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-06.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-7" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="7">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-07.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-8" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="-5">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-08.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-9" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="5">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-09.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-10" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="9">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-10.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-11" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-9">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-11.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-12" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-4">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-12.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-13" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="4">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-13.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-14" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="6">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-14.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-15" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-7">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-15.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-16" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-20">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-16.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-17" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="15">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-17.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-18" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="8">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-18.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-19" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="-11">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-19.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-20" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="19">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-20.png');"></div>
+    </div>
+  </div>
+  <div class="tarot-wrap tw-21" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-17">
+    <div class="tarot-card">
+      <div class="tarot-face tarot-back"></div>
+      <div class="tarot-face tarot-front" style="background-image: url('./images/tarot-21.png');"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="content-wrap">
+  <main class="main-container">
+
+    <header class="header">
+      <div class="header-top">
+        <img src="./images/p30-logo.png" alt="Persona 30th Anniversary Logo" class="header-logo">
+        <div class="header-text">
+          <h1 class="main-title">女神异闻录 · 人物人格测试</h1>
+          <p class="subhead-main">在他们的故事里，遇见你的另一面。</p>
+          <p class="subhead-sub">看看你是《女神异闻录》系列里的哪个角色。</p>
+        </div>
+      </div>
+
+      <img src="./images/persona-characters.png" alt="女神异闻录系列角色群像" class="hero-image">
+    </header>
+
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-number">01</div>
+        <h3>跟着直觉选</h3>
+        <p>没有标准答案，选择更像你的那一个</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">02</div>
+        <h3>遇见你的角色</h3>
+        <p>24 道选择，找到与你最相像的 TA</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">03</div>
+        <h3>留下一张角色卡</h3>
+        <p>看见你们相似的地方，也带走专属结果</p>
+      </div>
+    </div>
+
+    <section class="about-section">
+      <h2>关于这次探索</h2>
+      <p>
+        <span class="accent-crimson">24 道</span>关于日常选择的小问题，没有标准答案。<br>
+        不需要去想"哪个答案更好"，只需要选择更接近真实自己的那一个。
+      </p>
+      <p>
+        最后，我们会从 <span class="accent-yellow">35 位角色</span>中，找到与你性格倾向更接近的 <span class="accent-blue">TA</span>。
+      </p>
+      <div class="divider"></div>
+      <p>
+        它不是心理诊断，也不是给你贴上一个固定标签。<br>
+        更像是借一个熟悉的<span class="accent-purple">角色</span>，换个角度看看自己。
+      </p>
+      <div class="explore-badge">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+        </svg>
+        <span>等待你的选择</span>
+      </div>
+      <div class="quote-mark">"</div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var wraps = document.querySelectorAll('.tarot-wrap');
+  var bgLogo = document.querySelector('.bg-logo');
+  var bgHero = document.querySelector('.bg-hero');
+  var banner = document.querySelector('.hero-banner');
+
+  var flippedSet = new Set();
+  var targetX = 0, targetY = 0;
+  var smoothX = 0, smoothY = 0;
+  var idlePhase = 0;
+  var lastMoveTime = performance.now();
+  var IDLE_DELAY = 1200;
+  var currentLayout = 'top';
+
+  window.addEventListener('mousemove', function (e) {
+    var cx = window.innerWidth / 2;
+    var cy = window.innerHeight / 2;
+    targetX = (e.clientX - cx) / cx;
+    targetY = (e.clientY - cy) / cy;
+    lastMoveTime = performance.now();
+  }, { passive: true });
+
+  window.addEventListener('mouseleave', function () {
+    targetX = 0; targetY = 0;
+  });
+
+  // 点击翻牌
+  wraps.forEach(function (wrap) {
+    wrap.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (flippedSet.has(wrap)) {
+        flippedSet.delete(wrap);
+        wrap.classList.remove('flipped');
+      } else {
+        flippedSet.add(wrap);
+        wrap.classList.add('flipped');
+      }
+    });
+  });
+
+  // 布局切换
+  function updateLayout() {
+    if (!banner) return;
+    var bannerH = banner.offsetHeight;
+    var y = window.scrollY || window.pageYOffset;
+    var shouldScroll = y > bannerH * 0.7;
+    var next = shouldScroll ? 'scrolled' : 'top';
+    if (next !== currentLayout) {
+      currentLayout = next;
+      document.body.classList.toggle('layout-top', next === 'top');
+      document.body.classList.toggle('layout-scrolled', next === 'scrolled');
+      idlePhase = 0;
+      lastMoveTime = performance.now();
+    }
+  }
+  window.addEventListener('scroll', updateLayout, { passive: true });
+  window.addEventListener('resize', updateLayout);
+  updateLayout();
+
+  // 动画循环
+  function animate() {
+    var now = performance.now();
+    var isIdle = now - lastMoveTime > IDLE_DELAY;
+
+    if (isIdle) {
+      idlePhase += 0.012;
+      targetX = Math.sin(idlePhase * 0.8) * 0.45;
+      targetY = Math.cos(idlePhase * 0.6) * 0.35;
+    }
+
+    smoothX += (targetX - smoothX) * 0.06;
+    smoothY += (targetY - smoothY) * 0.06;
+
+    wraps.forEach(function (wrap) {
+      var depth = parseFloat(wrap.dataset.depth) || 0.5;
+      var floatAmp = parseFloat(wrap.dataset.float) || 1;
+      var isHovered = wrap.matches(':hover');
+      var isFlipped = flippedSet.has(wrap);
+      var baseRotate = parseFloat(wrap.dataset.rotate) || 0;
+
+      var offsetX = -smoothX * 18 * depth;
+      var offsetY = -smoothY * 14 * depth;
+      var rotY = smoothX * 6 * depth;
+      var rotX = -smoothY * 5 * depth;
+      var floatY = isIdle
+        ? Math.sin(idlePhase * 1.8 + depth * 4) * 6 * floatAmp
+        : Math.sin(idlePhase * 1.0 + depth * 3) * 2 * floatAmp;
+
+      // 外层：位移 + 缩放
+      wrap.style.setProperty('--px', offsetX + 'px');
+      wrap.style.setProperty('--py', (offsetY + floatY) + 'px');
+
+      var hoverScale = 1;
+      if (isHovered) {
+        var layer = wrap.dataset.layer;
+        if (layer === 'front') hoverScale = 1.12;
+        else if (layer === 'mid') hoverScale = 1.10;
+        else hoverScale = 1.08;
+      }
+      var flipScale = isFlipped ? 1.06 : 1;
+      wrap.style.setProperty('--scale', hoverScale * flipScale);
+
+      // 内层：3D 倾斜 + 翻转
+      var card = wrap.querySelector('.tarot-card');
+      if (card) {
+        var flipAngle = isFlipped ? 180 : 0;
+        card.style.transform =
+          'rotate(' + baseRotate + 'deg) ' +
+          'rotateX(' + rotX + 'deg) ' +
+          'rotateY(' + (rotY + flipAngle) + 'deg)';
+      }
+    });
+
+    if (bgLogo) {
+      bgLogo.style.transform = 'rotate(-8deg) translate3d(' + (-smoothX * 8) + 'px,' + (-smoothY * 6) + 'px,0)';
+    }
+    if (bgHero) {
+      bgHero.style.transform = 'rotate(6deg) translate3d(' + (-smoothX * 10) + 'px,' + (-smoothY * 8) + 'px,0)';
+    }
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+</script>
+</body>
+</html>
