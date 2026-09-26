@@ -93,15 +93,31 @@ const READ_STATE = `(function(){
   // 否则退回 CSS 里那张面具牌背（行内是空的）
   var cov = document.getElementById('bgmCover');
   var mini = document.getElementById('bgmMini');
+  // 收起态的封面/旋转都在中央那枚标贴上，不在按钮本身上
+  var miniLbl = document.getElementById('bgmMiniLabel');
+  var mr = mini ? mini.getBoundingClientRect() : null;
   return {
     missing: false,
     ready: bar.classList.contains('is-ready'),
-    // 收起态：显隐完全由 <body> 上的 .bgm-min 决定，所以三个量一起读
+    // 收起态：显隐完全由 <body> 上的 .bgm-min 决定，所以几个量一起读
     collapsed: document.body.classList.contains('bgm-min'),
     barVisible: getComputedStyle(bar).display !== 'none',
     miniVisible: mini ? getComputedStyle(mini).display !== 'none' : null,
-    miniArt: mini ? mini.classList.contains('is-art') : null,
-    miniUrl: mini ? decodeURIComponent((mini.style.backgroundImage || '')).slice(0, 90) : null,
+    miniArt: miniLbl ? miniLbl.classList.contains('is-art') : null,
+    miniUrl: miniLbl ? decodeURIComponent((miniLbl.style.backgroundImage || '')).slice(0, 90) : null,
+    miniPlaying: mini ? mini.getAttribute('data-playing') : null,
+    miniSpin: miniLbl ? getComputedStyle(miniLbl).animationPlayState : null,
+    miniAnim: miniLbl ? getComputedStyle(miniLbl).animationName : null,
+    miniSize: mr ? Math.round(mr.width) + 'x' + Math.round(mr.height) : null,
+    miniRadius: mini ? getComputedStyle(mini).borderRadius : null,
+    miniLabelSize: (function () {
+      if (!miniLbl) return null;
+      var r = miniLbl.getBoundingClientRect();
+      return Math.round(r.width) + 'x' + Math.round(r.height);
+    })(),
+    miniLabelRadius: miniLbl ? getComputedStyle(miniLbl).borderRadius : null,
+    miniLabelArt: miniLbl ? getComputedStyle(miniLbl).backgroundSize : null,
+    miniLabelImg: miniLbl ? getComputedStyle(miniLbl).backgroundImage.slice(0, 40) : null,
     miniLabel: mini ? mini.getAttribute('aria-label') : null,
     title: title ? title.textContent : null,
     count: (function () { var c = document.getElementById('bgmCount'); return c ? c.textContent : null; })(),
@@ -683,15 +699,48 @@ const READ_STATE = `(function(){
   console.log('  收起后:', JSON.stringify({
     collapsed: k1.collapsed, bar: k1.barVisible, mini: k1.miniVisible,
     playing: k1.playing, miniArt: k1.miniArt, miniUrl: k1.miniUrl }));
-  check('点收起按钮后：面板隐、圆钮现',
+  check('点收起按钮后：面板隐、唱片现',
         k1.collapsed === true && k1.barVisible === false && k1.miniVisible === true);
   check('收起不影响播放', k1.playing === 'true', 'data-playing=' + k1.playing);
-  check('圆钮上带着当前曲目的封面（和面板上那张是同一张）',
+  check('唱片中央带着当前曲目的封面（和面板上那张是同一张）',
         k1.miniArt === true && !!k1.miniUrl && !!urlBefore &&
         k1.miniUrl.slice(-20) === urlBefore.slice(-20),
         k1.miniUrl);
-  check('圆钮有可读的 aria 标签', /展开播放器/.test(k1.miniLabel || ''), k1.miniLabel);
+  check('唱片有可读的 aria 标签', /展开播放器/.test(k1.miniLabel || ''), k1.miniLabel);
+
+  // 唱片这个形状：按钮是圆的、标贴也是圆的，而且都在面板原来的角上
+  check('收起态是正圆（按钮与中央标贴都是圆形）',
+        k1.miniSize === '54x54' && k1.miniRadius === '50%' &&
+        !!k1.miniLabelSize && k1.miniLabelRadius === '50%',
+        '按钮 ' + k1.miniSize + ' r=' + k1.miniRadius +
+        '  标贴 ' + k1.miniLabelSize + ' r=' + k1.miniLabelRadius);
+  check('中央标贴铺的是当前封面（不是兜底的面具）',
+        k1.miniLabelArt === 'cover', 'background-size=' + k1.miniLabelArt);
+
+  // 转不转要跟着播放态走 —— 这是"收起后也能看出在不在放"的全部依据
+  check('在播时唱片在转', k1.miniSpin === 'running', 'animation-play-state=' + k1.miniSpin);
+
+  const pb = await centerOf('#bgmPlay');
+  if (k1.collapsed) {
+    // 这里用 element.click()（合成事件）是**刻意**的：收起时面板是 display:none，
+    // 没法派发真实鼠标事件。而且此刻只是把已经在播的音频叫停，
+    // 不需要「用户激活」—— 合成事件会假通过的坑只在"解锁自动播放"那一步。
+    await evaluate('(function(){document.querySelector("#bgmPlay").click();return 1})()');
+  }
+  await sleep(1200);
+  const kPaused = await evaluate(READ_STATE);
+  check('暂停后唱片停转（收起态也能看出没在放）',
+        kPaused.miniSpin === 'paused', 'animation-play-state=' + kPaused.miniSpin);
+  check('停转时唱片仍在（没有整个消失）',
+        kPaused.miniVisible === true && kPaused.miniSize === '54x54', kPaused.miniSize);
   await shootClip('10-collapsed', '.bgm-mini');
+
+  // 恢复播放，再展开
+  await evaluate('(function(){document.querySelector("#bgmPlay").click();return 1})()');
+  await sleep(1200);
+  const kPlaying = await evaluate(READ_STATE);
+  check('恢复播放后唱片重新转起来', kPlaying.miniSpin === 'running',
+        'animation-play-state=' + kPlaying.miniSpin);
 
   const miniBtn = await centerOf('#bgmMini');
   await clickAt(miniBtn.x, miniBtn.y);

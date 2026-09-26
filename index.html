@@ -544,7 +544,7 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 /* ---- 背景音乐播放器 ----
    两种形态：
      · 展开 .bgm-bar  —— 默认就是这个
-     · 收起 .bgm-mini —— 右下角一枚 50px 的封面圆钮，点一下展开
+     · 收起 .bgm-mini —— 右下角一张 54px 的唱片（黑胶盘面 + 中间转着封面），点一下展开
    收起时给 <body> 挂 .bgm-min，由 CSS 决定谁显示。状态不写 localStorage ——
    需求是「每次进站都是展开的」，记状态反而会和它打架。
 
@@ -572,6 +572,10 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   --bgm-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.78);
   --bgm-shadow-hi: 0 24px 52px -22px rgba(0, 0, 0, 0.85);
   --bgm-knob: #1a1822;                       /* 把手内芯（外环跟随 currentColor） */
+  --bgm-disc-mid: #35323f;                   /* 黑胶盘面：中圈 */
+  --bgm-disc-inner: #17151e;                 /* 黑胶盘面：内芯（近黑） */
+  --bgm-disc-outer: #2c2935;                 /* 黑胶盘面：外圈（受光的一点点反光） */
+  --bgm-groove: rgba(255, 255, 255, 0.05);   /* 盘面上的同心纹 */
 }
 
 .bgm-bar {
@@ -605,20 +609,23 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 /* 键盘 Tab 进来也要亮起来，否则用键盘的人看不到自己停在哪儿 */
 .bgm-bar:focus-within { color: var(--bgm-ink-hi); border-color: var(--bgm-edge-hi); }
 
-/* 收起后只剩这一枚：当前曲目的封面当底，右下角一个展开箭头。
-   放在播放器原来的位置，所以"点刚才那块地方"就能拿回来。 */
+/* 收起后只剩一张唱片：黑胶盘面 + 中间转起来的封面标贴。
+   放在播放器原来的位置，所以"点刚才那块地方"就能拿回来。
+   用圆形而不是方形 —— 唱片这个意象一眼就知道是播放器，方角缩略图看不出来。 */
 .bgm-mini {
   position: fixed; right: 18px; bottom: 18px; z-index: 401;
   display: none;
-  width: 50px; height: 50px;
+  width: 54px; height: 54px;
   padding: 0;
   border: 1px solid var(--bgm-edge);
-  border-radius: 15px;
-  background-color: var(--bgm-surface);
-  background-image: url(./images/tarot-back.webp);
-  background-repeat: no-repeat;
-  background-position: 50% 50%;
-  background-size: 138% auto;   /* 没配封面时退回面具，数值同 .bgm-cover */
+  border-radius: 50%;
+  /* 盘面：先叠一层细密同心纹当音轨，再压一层由中灰到近黑的径向渐变。
+     两层都是静态渐变 —— 不引入 filter，也不产生逐帧开销。 */
+  background-image:
+    repeating-radial-gradient(circle at 50% 50%,
+      var(--bgm-groove) 0 1px, transparent 1px 3px),
+    radial-gradient(circle at 50% 50%,
+      var(--bgm-disc-mid) 0%, var(--bgm-disc-inner) 62%, var(--bgm-disc-outer) 100%);
   color: var(--bgm-ink);
   cursor: pointer;
   box-shadow: var(--bgm-shadow);
@@ -627,22 +634,56 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
     border-color 0.3s ease,
     box-shadow 0.3s ease;
 }
-.bgm-mini.is-art { background-size: cover; }
 .bgm-mini:hover {
   transform: translateY(-3px) scale(1.04);
   border-color: var(--bgm-edge-hi);
   box-shadow: var(--bgm-shadow-hi);
 }
-.bgm-mini:focus-visible { outline: 2px solid var(--bgm-edge-hi); outline-offset: 2px; }
+.bgm-mini:focus-visible { outline: 2px solid var(--bgm-edge-hi); outline-offset: 3px; }
 
 /* 收起 / 展开的显隐切换。用 body 上的类当唯一状态源，
    免得两个元素的可见性和 JS 变量各说各话。 */
 body.bgm-min .bgm-bar.is-ready { display: none; }
 body.bgm-min .bgm-mini { display: block; }
 
+/* 唱片中央的封面标贴 —— 转起来的就是它。
+   没配封面时退回牌背的面具，数值和 .bgm-cover 一致。 */
+.bgm-mini-label {
+  position: absolute; left: 50%; top: 50%;
+  width: 34px; height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  background-color: var(--bgm-surface);
+  background-image: url(./images/tarot-back.webp);
+  background-repeat: no-repeat;
+  background-position: 50% 50%;
+  background-size: 138% auto;
+  animation: bgm-spin 7s linear infinite;
+  /* 没在播就不转 —— 这样"现在有没有在放"不用点开面板就能看出来。 */
+  animation-play-state: paused;
+  pointer-events: none;
+}
+.bgm-mini-label.is-art { background-size: cover; }
+.bgm-mini[data-playing="true"] .bgm-mini-label { animation-play-state: running; }
+
+@keyframes bgm-spin { to { transform: rotate(360deg); } }
+
+/* 中心孔：让"这是张唱片"这件事立住。不跟着转（转的是标贴）。 */
+.bgm-mini-hole {
+  position: absolute; left: 50%; top: 50%;
+  width: 6px; height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--bgm-knob);
+  box-shadow: inset 0 0 0 1px var(--bgm-edge);
+  pointer-events: none;
+}
+
+/* 展开箭头角标：压在唱片右下角，让人知道这玩意儿能点开。
+   刻意不裁边，让它稍微探出圆边一点，反而更醒目。 */
 .bgm-mini-badge {
-  position: absolute; right: 3px; bottom: 3px;
-  width: 19px; height: 19px;
+  position: absolute; right: -2px; bottom: -2px;
+  width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   background: var(--bgm-surface);
@@ -886,6 +927,8 @@ body.bgm-min .bgm-mini { display: block; }
   }
   .bgm-btn:active { transform: none; }
   .bgm-mini:hover { transform: none; }
+  /* 减少动态偏好下，唱片不转 —— 但它仍然通过边框明暗表示状态 */
+  .bgm-mini-label { animation: none; }
   .tarot-wrap::after { display: none; }
 }
 </style>
@@ -1180,9 +1223,12 @@ body.bgm-min .bgm-mini { display: block; }
   </div>
 </div>
 
-<!-- 收起后的形态：一枚封面圆钮，点一下展开。给 <body> 挂 .bgm-min 来切换显隐，
-     这样"谁在显示"只有一份状态，不会和 JS 变量各说各话。 -->
+<!-- 收起后的形态：一张唱片。黑胶盘面是按钮自己的背景，中间转的是封面标贴。
+     给 <body> 挂 .bgm-min 来切换显隐，这样"谁在显示"只有一份状态，
+     不会和 JS 变量各说各话。 -->
 <button class="bgm-mini" id="bgmMini" type="button" aria-label="展开播放器" title="展开播放器">
+  <span class="bgm-mini-label" id="bgmMiniLabel" aria-hidden="true"></span>
+  <span class="bgm-mini-hole" aria-hidden="true"></span>
   <span class="bgm-mini-badge" aria-hidden="true">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
          stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
@@ -1626,6 +1672,7 @@ body.bgm-min .bgm-mini { display: block; }
   var coverEl   = document.getElementById('bgmCover');
   var btnMin    = document.getElementById('bgmMin');
   var btnMini   = document.getElementById('bgmMini');
+  var miniLabel = document.getElementById('bgmMiniLabel');
   var countEl   = document.getElementById('bgmCount');
   var timeEl    = document.getElementById('bgmTime');
   var fillEl    = document.getElementById('bgmFill');
@@ -1691,7 +1738,7 @@ body.bgm-min .bgm-mini { display: block; }
   // 封面：清单里给了 cover 就用它，否则清掉行内样式退回 CSS 里那张面具牌背。
   // 用行内 backgroundImage 而不是换 <img>：铺法（居中裁切）由 CSS 的
   // .bgm-cover / .is-art 两条规则管，JS 只负责换图。
-  // 展开态的封面和收起态的圆钮共用同一张图，所以一起设。
+  // 展开态的封面、收起态唱片中央的标贴，共用同一张图，所以一起设。
   function paintArt(el, url) {
     if (!el) return;
     if (url) {
@@ -1704,7 +1751,7 @@ body.bgm-min .bgm-mini { display: block; }
   }
   function setCover(url) {
     paintArt(coverEl, url);
-    paintArt(btnMini, url);
+    paintArt(miniLabel, url);
   }
 
   function paint() {
@@ -1723,6 +1770,8 @@ body.bgm-min .bgm-mini { display: block; }
     // 状态只有 DOM 这一份，样式和验证脚本都只认它，不会和 JS 变量走失。
     btnPlay.setAttribute('data-playing', playing ? 'true' : 'false');
     bar.setAttribute('data-playing', playing ? 'true' : 'false');
+    // 收起态那张唱片的旋转也认这个状态：在播就转，暂停就停
+    if (btnMini) btnMini.setAttribute('data-playing', playing ? 'true' : 'false');
     var label = playing ? '暂停' : '播放';
     btnPlay.setAttribute('aria-label', label);
     btnPlay.setAttribute('title', label);
