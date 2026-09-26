@@ -28,6 +28,7 @@ mkdir -p "$(dirname "$OUT_PNG")"
 
 "$EDGE" --headless=new --disable-gpu --no-sandbox --no-first-run \
   --hide-scrollbars --force-device-scale-factor="$SCALE" \
+  ${SHOT_FLAGS:-} \
   --user-data-dir="$WIN_PROFILE" \
   --screenshot="$WIN_OUT" \
   --window-size="$W,$H" \

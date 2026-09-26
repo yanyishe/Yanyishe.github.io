@@ -1,2 +1,16 @@
-# Auto detect text files and perform LF normalization
+# 默认：文本文件在仓库里统一存 LF，检出时按平台转换
 * text=auto
+
+# 脚本必须保持 LF。CRLF 的 shebang 在 bash 下会报
+#   /usr/bin/env: 'bash\r': No such file or directory
+# —— 而且这个错误只在 Linux/macOS 或某些 Git Bash 下才出现，本机很难复现。
+*.sh text eol=lf
+*.py text eol=lf
+*.js text eol=lf
+
+# 音视频和图片是二进制，别让 git 去做行尾转换
+*.mp3 binary
+*.wav binary
+*.webp binary
+*.png binary
+*.jpg binary

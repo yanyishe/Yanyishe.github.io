@@ -13,6 +13,10 @@
 # 同样可从历史里取回：
 #   git checkout <旧提交> -- images/
 images/*.png
+# 例外：favicon 必须是真实图片文件（不像播放器封面那样能用 CSS 从牌背上裁），
+# 所以单独放行。由 tools/make_favicon.py 生成。
+!images/favicon.png
+!images/favicon-180.png
 
 # 验证与排版过程中产出的截图、临时页面、浏览器配置目录
 preview/

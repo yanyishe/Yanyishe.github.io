@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>女神异闻录 · 人物人格测试</title>
 <link rel="preload" as="image" href="./images/banner.webp" fetchpriority="high">
+<!-- 标签页图标：以前这里什么都没有，浏览器就一直显示默认的地球图标。
+     由 tools/make_favicon.py 从牌背裁出面具生成（紧裁 + 暖金描边 ——
+     面具是左白右黑，不描边的话白色那半边在浅色标签栏上会糊进背景）。 -->
+<link rel="icon" type="image/png" href="./images/favicon.png">
+<link rel="apple-touch-icon" href="./images/favicon-180.png">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -532,45 +537,296 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 }
 .explore-badge:hover svg { transform: translateX(4px); }
 
-/* ========== 音效开关 ========== */
-/* 默认开着（翻牌有声是体验的一半），但必须给用户一个随手关掉的地方 ——
-   所以按钮压得很低（opacity .55），不抢画面，鼠标靠近才真正亮起来。
-   这里刻意不用 backdrop-filter：整站为了那 3G 内存把 filter 类的东西清干净了，
-   一个 40px 的小圆点不值得再把合成层请回来。 */
-.sfx-toggle {
+/* 音效开关的浮动圆钮已移除（见「背景音乐播放器」上方注释）。
+   翻牌声与悬停轻响保留，只是不再有独立开关 —— 它和播放器里的音量条挨在一起，
+   两个喇叭图标容易让人以为是同一个东西。 */
+
+/* ---- 背景音乐播放器 ----
+   两种形态：
+     · 展开 .bgm-bar  —— 默认就是这个
+     · 收起 .bgm-mini —— 右下角一枚 50px 的封面圆钮，点一下展开
+   收起时给 <body> 挂 .bgm-min，由 CSS 决定谁显示。状态不写 localStorage ——
+   需求是「每次进站都是展开的」，记状态反而会和它打架。
+
+   刻意不用 backdrop-filter / filter —— 整站为了那 3G 内存把 filter 类清干净了，
+   一个角落控件不值得再把合成层请回来。
+   进度和音量都靠 scaleX / translateX 推进，不写 width，免得每秒触发布局。
+
+   颜色全部收在最上面那组自定义属性里，下面规则体里不再出现裸色值 ——
+   换肤只动那几行。播放器和收起钮共用同一份。 */
+.bgm-bar, .bgm-mini {
+  /* 深墨底 + 暖金。页面本身是米白纸质，控件压成一块深色浮层：
+     对比够强，也不会被背后的塔罗牌纹理透上来。 */
+  --bgm-surface: #1a1822;                    /* 面板底 */
+  --bgm-edge: rgba(214, 166, 74, 0.32);      /* 描边 */
+  --bgm-edge-hi: rgba(214, 166, 74, 0.85);   /* 悬停 / 聚焦描边 */
+  --bgm-ink: rgba(240, 228, 202, 0.72);      /* 常规前景，也是进度与音量的已播色 */
+  --bgm-ink-hi: #f6ebd2;                     /* 悬停前景 */
+  --bgm-dim: rgba(240, 228, 202, 0.46);      /* 曲序、时长这类更弱的字 */
+  --bgm-rail: rgba(240, 228, 202, 0.16);     /* 轨道底、按钮悬停底 */
+  --bgm-art-edge: rgba(214, 166, 74, 0.42);  /* 封面描边 */
+  --bgm-accent: #c9a24a;                     /* 主播放键 */
+  --bgm-accent-hi: #dcb75f;
+  --bgm-on-accent: #1a1822;                  /* 主键上的图标 */
+  --bgm-accent-glow: rgba(201, 162, 74, 0.5);
+  --bgm-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.78);
+  --bgm-shadow-hi: 0 24px 52px -22px rgba(0, 0, 0, 0.85);
+  --bgm-knob: #1a1822;                       /* 把手内芯（外环跟随 currentColor） */
+}
+
+.bgm-bar {
   position: fixed; right: 18px; bottom: 18px; z-index: 400;
-  width: 40px; height: 40px;
-  display: flex; align-items: center; justify-content: center;
-  padding: 0;
-  border: 1px solid rgba(214,166,74,0.38);
-  border-radius: 50%;
-  background: rgba(255,253,249,0.88);
-  color: #96702a;
-  cursor: pointer;
-  opacity: 0.55;
+  display: none;
+  align-items: center;
+  gap: 13px;
+  /* 宽度写死：曲名长短差别很大，让它自己撑会一伸一缩，切歌时看着像在抖 */
+  width: 322px;
+  padding: 12px;
+  /* 静置的「不抢画面」靠压前景对比度实现，而不是给整条降 opacity ——
+     opacity 会把背景一起变透明。 */
+  border: 1px solid var(--bgm-edge);
+  border-radius: 18px;
+  background: var(--bgm-surface);
+  color: var(--bgm-ink);
+  box-shadow: var(--bgm-shadow);
   transition:
-    opacity 0.3s ease,
+    color 0.3s ease,
     border-color 0.3s ease,
     box-shadow 0.3s ease,
     transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
-.sfx-toggle:hover {
-  opacity: 1;
+.bgm-bar.is-ready { display: flex; }
+.bgm-bar:hover {
+  color: var(--bgm-ink-hi);
   transform: translateY(-2px);
-  border-color: rgba(214,166,74,0.85);
-  box-shadow: 0 12px 24px -12px rgba(140,100,30,0.6);
+  border-color: var(--bgm-edge-hi);
+  box-shadow: var(--bgm-shadow-hi);
 }
-.sfx-toggle:focus-visible {
-  outline: 2px solid rgba(214,166,74,0.9);
+/* 键盘 Tab 进来也要亮起来，否则用键盘的人看不到自己停在哪儿 */
+.bgm-bar:focus-within { color: var(--bgm-ink-hi); border-color: var(--bgm-edge-hi); }
+
+/* 收起后只剩这一枚：当前曲目的封面当底，右下角一个展开箭头。
+   放在播放器原来的位置，所以"点刚才那块地方"就能拿回来。 */
+.bgm-mini {
+  position: fixed; right: 18px; bottom: 18px; z-index: 401;
+  display: none;
+  width: 50px; height: 50px;
+  padding: 0;
+  border: 1px solid var(--bgm-edge);
+  border-radius: 15px;
+  background-color: var(--bgm-surface);
+  background-image: url(./images/tarot-back.webp);
+  background-repeat: no-repeat;
+  background-position: 50% 50%;
+  background-size: 138% auto;   /* 没配封面时退回面具，数值同 .bgm-cover */
+  color: var(--bgm-ink);
+  cursor: pointer;
+  box-shadow: var(--bgm-shadow);
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0.7, 0.3, 1),
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.bgm-mini.is-art { background-size: cover; }
+.bgm-mini:hover {
+  transform: translateY(-3px) scale(1.04);
+  border-color: var(--bgm-edge-hi);
+  box-shadow: var(--bgm-shadow-hi);
+}
+.bgm-mini:focus-visible { outline: 2px solid var(--bgm-edge-hi); outline-offset: 2px; }
+
+/* 收起 / 展开的显隐切换。用 body 上的类当唯一状态源，
+   免得两个元素的可见性和 JS 变量各说各话。 */
+body.bgm-min .bgm-bar.is-ready { display: none; }
+body.bgm-min .bgm-mini { display: block; }
+
+.bgm-mini-badge {
+  position: absolute; right: 3px; bottom: 3px;
+  width: 19px; height: 19px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--bgm-surface);
+  color: var(--bgm-accent);
+  box-shadow: 0 0 0 1px var(--bgm-edge);
+  pointer-events: none;
+}
+.bgm-mini-badge svg { width: 12px; height: 12px; display: block; }
+
+/* 封面。这首歌没配图时退回牌背的面具（面具正好落在牌面正中，放大就能裁到）；
+   配了图就换成图 —— JS 会加上 .is-art，铺法随之切换。 */
+.bgm-cover {
+  flex: 0 0 auto;
+  width: 104px; height: 104px;
+  border-radius: 13px;
+  background-image: url(./images/tarot-back.webp);
+  background-repeat: no-repeat;
+  /* 138% 是算出来的：面具直径约占牌宽 68.75%，放大到 138% 时它正好填满封面 */
+  background-size: 138% auto;
+  background-position: 50% 50%;
+  box-shadow: inset 0 0 0 1px var(--bgm-art-edge);
+}
+/* 专属封面：按 cover 铺满并居中裁切 —— 方形专辑图正好贴合，
+   竖版的图则居中裁掉上下，露出来的都是画面主体 */
+.bgm-cover.is-art {
+  background-size: cover;
+  background-position: 50% 50%;
+}
+
+.bgm-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 用 center 而不是 baseline：这一行里除了文字还有一个收起按钮，
+   baseline 会让按钮和文字对不齐 */
+.bgm-head {
+  display: flex; align-items: center; gap: 7px;
+  min-width: 0;
+}
+/* 曲名占满左侧剩余宽度，超长截断 —— min-width:0 是让 ellipsis
+   在 flex 子项上生效的必要条件（默认 min-width:auto 会撑开容器） */
+.bgm-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  letter-spacing: 0.02em;
+}
+/* 曲序「03 / 08」：等宽数字，切歌时它不会左右跳 */
+.bgm-count {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  color: var(--bgm-dim);
+}
+
+/* 进度与音量共用的槽：视觉上只有 3~4px 粗，命中区做到 16px 高，手指才点得准 */
+.bgm-track {
+  position: relative;
+  display: flex; align-items: center;
+  height: 16px;
+  cursor: pointer;
+  touch-action: none;   /* 拖动时别把页面一起滚了 */
+}
+.bgm-track:focus-visible {
+  outline: 2px solid var(--bgm-edge-hi);
   outline-offset: 2px;
-  opacity: 1;
+  border-radius: 4px;
 }
-.sfx-toggle svg { width: 18px; height: 18px; display: block; }
-/* 两个图标互斥显示，靠 aria-pressed 切 —— 状态只有一份，不会和 JS 变量走失 */
-.sfx-toggle .ico-off { display: none; }
-.sfx-toggle[aria-pressed="true"] .ico-on  { display: none; }
-.sfx-toggle[aria-pressed="true"] .ico-off { display: block; }
-.sfx-toggle[aria-pressed="true"] { color: #a9a29a; border-color: rgba(0,0,0,0.14); }
+.bgm-rail {
+  position: relative;
+  display: block;
+  width: 100%; height: 4px;
+  border-radius: 2px;
+  background: var(--bgm-rail);
+}
+/* 已播部分跟着 currentColor 走，明暗就和曲名、图标同步了 ——
+   静置时一起淡下去，靠近时一起亮起来。
+   只改 scaleX，不碰 width：走合成器，不逐帧触发布局。 */
+.bgm-rail > i {
+  display: block; width: 100%; height: 100%;
+  border-radius: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+/* 把手单独放，不吃父级那个 scaleX —— 缩放过的手柄会被压成椭圆。
+   它改走 translateX，同样是合成属性。 */
+.bgm-knob {
+  position: absolute; top: 50%; left: 0;
+  width: 10px; height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--bgm-knob);
+  box-shadow: 0 0 0 2px currentColor;
+  transform: translateX(0);
+  pointer-events: none;
+}
+.bgm-knob-sm { width: 8px; height: 8px; margin: -4px 0 0 -4px; }
+
+.bgm-foot { display: flex; align-items: center; gap: 8px; }
+/* 已播/总时长：等宽数字，秒数跳动时不会抖 */
+.bgm-time {
+  flex: 1 1 auto; min-width: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bgm-btns { display: flex; align-items: center; gap: 2px; }
+
+.bgm-btn {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, color 0.2s ease;
+}
+.bgm-btn:hover { background: var(--bgm-rail); }
+.bgm-btn:active { transform: scale(0.9); }
+.bgm-btn:focus-visible { outline: 2px solid var(--bgm-edge-hi); outline-offset: 1px; }
+.bgm-btn svg { width: 17px; height: 17px; display: block; }
+
+/* 播放键是唯一的主操作，做成实心金圆 —— 一眼能看出该按哪儿 */
+.bgm-btn-main {
+  width: 34px; height: 34px;
+  margin: 0 3px;
+  background: var(--bgm-accent);
+  color: var(--bgm-on-accent);
+  box-shadow: 0 6px 14px -7px var(--bgm-accent-glow);
+}
+.bgm-btn-main:hover { background: var(--bgm-accent-hi); }
+.bgm-btn-main svg { width: 19px; height: 19px; }
+/* 播放 / 暂停两个图标互斥显示，靠 data-playing 切 —— 和音效开关一样，
+   状态只挂在 DOM 上，不会和 JS 变量走失 */
+.bgm-btn .ico-pause { display: none; }
+.bgm-btn[data-playing="true"] .ico-play  { display: none; }
+.bgm-btn[data-playing="true"] .ico-pause { display: block; }
+
+/* 收起按钮：比其它按钮更小更轻，它不该和播放键抢注意力 */
+.bgm-min { width: 22px; height: 22px; }
+.bgm-min svg { width: 14px; height: 14px; }
+
+.bgm-volrow { display: flex; align-items: center; gap: 6px; }
+.bgm-btn-vol { width: 22px; height: 22px; }
+.bgm-btn-vol svg { width: 15px; height: 15px; }
+.bgm-track-vol { flex: 1 1 auto; min-width: 0; }
+.bgm-rail-vol { height: 3px; }
+.bgm-btn .ico-mute { display: none; }
+.bgm-btn[data-muted="true"] .ico-vol  { display: none; }
+.bgm-btn[data-muted="true"] .ico-mute { display: block; }
+
+/* 窄屏：改成左右贴边的通栏条，比固定 322px 更省地方也更好按。
+   封面和曲序让位；音量行收掉 —— 手机本来就有实体音量键，
+   留着它只会把播放器顶得更高、压住正文。 */
+@media (max-width: 620px) {
+  .bgm-bar {
+    right: 10px; left: 10px; bottom: 10px;
+    width: auto;
+    padding: 9px 11px;
+    gap: 0;
+    border-radius: 15px;
+  }
+  .bgm-main { gap: 3px; }
+  .bgm-cover { display: none; }
+  .bgm-count { display: none; }
+  .bgm-volrow { display: none; }
+  .bgm-btn-main { width: 32px; height: 32px; }
+  .bgm-btn { width: 30px; height: 30px; }
+  .bgm-time { font-size: 11px; }
+  .bgm-mini { right: 10px; bottom: 10px; }
+}
 
 /* 视口收窄到两侧塞不下「近景列 + 间隔 + 远景列」时，收起远景列。
    1320px 是算出来的临界点：再窄远景列就会贴到屏幕边缘。 */
@@ -586,6 +842,18 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   .main-title::after { left: 50%; transform: translateX(-50%); }
   .main-title:hover::after { transform: translateX(-50%) scaleX(1.7); }
   .steps-grid { grid-template-columns: 1fr; }
+
+  /* 正文为什么"挤"：.content-wrap 的 3rem 加 .main-container 的 3rem，
+     两道内边距在 390px 的屏上一共吃掉 144px —— 正文只剩 246px 宽，
+     一行放不下几个字，读起来就憋。收到 1rem / 1.375rem 后回到约 316px。 */
+  .content-wrap { padding: 1.5rem 1rem; }
+  .main-container { padding: 1.75rem 1.375rem 2.5rem; border-radius: 1.25rem; }
+
+  /* 背景那两列塔罗牌：桌面上是从内容卡两侧露出来的纵深层次，
+     窄屏上内容卡几乎占满宽度，它们就只剩半截边角露在外面，
+     看着像图没加载完。整层收掉，留一个干净底反而好看。 */
+  .tarot-layer { display: none; }
+
   .tw-10,.tw-11,.tw-12,.tw-13,.tw-14,.tw-15,.tw-16,.tw-17,
   .tw-18,.tw-19,.tw-20,.tw-21 { display: none; }
 }
@@ -598,11 +866,11 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   .step-card:hover h3 { color: #1a1a1f; }
   .explore-badge:hover { transform: none; box-shadow: none; }
   .hero-image:hover { transform: none; }
-  /* 触屏没有 hover，开关永远等不到那一下"亮起来"，
-     于是它会一直停在 opacity .55，看起来像被禁用的。
-     这里直接给它常亮。 */
-  .sfx-toggle { opacity: 1; }
-  .sfx-toggle:hover { transform: none; }
+  /* 音乐控制条在触屏上等不到 hover 那一下「亮起来」，所以直接常亮 ——
+     它的明暗靠前景对比度控制，不是 opacity */
+  .bgm-bar { color: var(--bgm-ink-hi); border-color: var(--bgm-edge-hi); }
+  .bgm-bar:hover { transform: none; }
+  .bgm-mini:hover { transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -613,13 +881,12 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   .explore-badge, .explore-badge::before, .explore-badge svg,
   .header-logo, .hero-image,
     .main-title::after, .about-section h2::after,
-    .divider, .quote-mark, .sfx-toggle {
+    .divider, .quote-mark, .bgm-bar, .bgm-btn, .bgm-mini {
     transition: none !important;
   }
+  .bgm-btn:active { transform: none; }
+  .bgm-mini:hover { transform: none; }
   .tarot-wrap::after { display: none; }
-  /* 减少动态偏好下，音效默认保持开启（动效和声音是两件事），
-     但开关本身不再有位移反馈。 */
-  .sfx-toggle:hover { transform: none; }
 }
 </style>
 </head>
@@ -829,21 +1096,103 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   </main>
 </div>
 
-<!-- 音效开关：默认开启，点击切静音，选择记在 localStorage -->
-<button class="sfx-toggle" id="sfxToggle" type="button"
-        aria-pressed="false" aria-label="关闭音效" title="关闭音效">
-  <svg class="ico-on" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-       stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z" />
-    <path d="M15.4 8.6a4.8 4.8 0 0 1 0 6.8" />
-    <path d="M18.2 5.8a8.8 8.8 0 0 1 0 12.4" />
-  </svg>
-  <svg class="ico-off" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-       stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M11 5 6.5 8.5H3v7h3.5L11 19V5Z" />
-    <path d="m16 9.5 5 5M21 9.5l-5 5" />
-  </svg>
+<!-- 背景音乐播放器：曲目清单为空时整条不出现，所以页面上不会留空壳 -->
+<div class="bgm-bar" id="bgmBar" role="group" aria-label="背景音乐">
+
+  <!-- 封面：这首歌配了图就显示图（清单里的 cover 字段，由 gen_music_manifest.py 扫描
+       music/ 里同名的图片得到）；没配就退回牌背的面具 —— 见 CSS 里的 .bgm-cover。 -->
+  <span class="bgm-cover" id="bgmCover" aria-hidden="true"></span>
+
+  <div class="bgm-main">
+    <div class="bgm-head">
+      <span class="bgm-title" id="bgmTitle">—</span>
+      <span class="bgm-count" id="bgmCount">01 / 01</span>
+      <button class="bgm-btn bgm-min" id="bgmMin" type="button"
+              aria-label="收起播放器" title="收起播放器">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 9.5 12 15.5 18 9.5" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- 进度：role=slider 让键盘也能调，pointer 事件支持点击和拖拽跳转 -->
+    <div class="bgm-track" id="bgmSeek" role="slider" tabindex="0"
+         aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <span class="bgm-rail"><i id="bgmFill"></i><b class="bgm-knob" id="bgmKnob"></b></span>
+    </div>
+
+    <div class="bgm-foot">
+      <span class="bgm-time" id="bgmTime">0:00 / 0:00</span>
+
+      <div class="bgm-btns">
+        <button class="bgm-btn" id="bgmPrev" type="button" aria-label="上一首" title="上一首">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M19 6.5v11L9.6 12z" />
+            <path d="M5.8 6v12" />
+          </svg>
+        </button>
+
+        <button class="bgm-btn bgm-btn-main" id="bgmPlay" type="button" data-playing="true"
+                aria-label="暂停" title="暂停">
+          <svg class="ico-play" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8.8 5.2v13.6L19.5 12z" />
+          </svg>
+          <svg class="ico-pause" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9.4 5.5v13M14.6 5.5v13" />
+          </svg>
+        </button>
+
+        <button class="bgm-btn" id="bgmNext" type="button" aria-label="下一首" title="下一首">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 6.5v11L14.4 12z" />
+            <path d="M18.2 6v12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="bgm-volrow">
+      <button class="bgm-btn bgm-btn-vol" id="bgmMute" type="button" data-muted="false"
+              aria-label="静音" title="静音">
+        <svg class="ico-vol" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9.5h3.4L12 5.8v12.4L7.4 14.5H4z" />
+          <path d="M16 9.7a3.3 3.3 0 0 1 0 4.6" />
+          <path d="M18.7 7.3a6.8 6.8 0 0 1 0 9.4" />
+        </svg>
+        <svg class="ico-mute" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+             stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 9.5h3.4L12 5.8v12.4L7.4 14.5H4z" />
+          <path d="m16.2 9.9 4.5 4.5M20.7 9.9l-4.5 4.5" />
+        </svg>
+      </button>
+
+      <div class="bgm-track bgm-track-vol" id="bgmVol" role="slider" tabindex="0"
+           aria-label="音量" aria-valuemin="0" aria-valuemax="100" aria-valuenow="40">
+        <span class="bgm-rail bgm-rail-vol"><i id="bgmVolFill"></i><b class="bgm-knob bgm-knob-sm" id="bgmVolKnob"></b></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 收起后的形态：一枚封面圆钮，点一下展开。给 <body> 挂 .bgm-min 来切换显隐，
+     这样"谁在显示"只有一份状态，不会和 JS 变量各说各话。 -->
+<button class="bgm-mini" id="bgmMini" type="button" aria-label="展开播放器" title="展开播放器">
+  <span class="bgm-mini-badge" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+         stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 15.5 12 9.5 18 15.5" />
+    </svg>
+  </span>
 </button>
+
+<!-- 曲目清单：由 tools/gen_music_manifest.py 扫描 music/ 目录生成，别手改 -->
+<script src="./music/manifest.js"></script>
 
 <script>
 (function () {
@@ -923,10 +1272,10 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   // 而"翻纸声"本质就是一段快速衰减的带通噪声，合成比采样更小、更可控，
   // 也能让"悬停"和"翻牌"共用同一段噪声源，只在滤波和包络上分家。
   var sfxCtx = null, sfxNoise = null, sfxReady = false;
-  var sfxMuted = false;
   var lastTickAt = 0;
 
-  try { sfxMuted = localStorage.getItem('yys-sfx') === 'off'; } catch (err) {}
+  // 音效常开。原来有个右下角的浮动喇叭开关，但它和播放器里的音量条挤在一起、
+  // 两个喇叭图标容易被当成同一个东西，已经移除（见 CSS 里那段注释）。
 
   // 浏览器不允许在用户手势之前出声，所以 AudioContext 一直等到第一次
   // 按下 / 触摸 / 按键才创建。在此之前悬停是静音的 —— 这是正常的，
@@ -986,7 +1335,7 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   //   ② 230→118Hz 的弱正弦   = 牌落定的那一下"闷"
   // 只有①会显得像撕纸，只有②又不像牌；两个一起才有"翻"的重量。
   function sfxFlip() {
-    if (!sfxReady || sfxMuted) return;
+    if (!sfxReady) return;
     sfxNoiseBurst(900, 3400, 1.1, 0.17, 0.16, 1, 0);
 
     var ac = sfxCtx, t = ac.currentTime + 0.04;
@@ -1005,38 +1354,16 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   // 悬停：只有 50ms 的高频碎响，音量压到 0.05 ——
   // 目的是让人"听见牌的存在"，而不是听见音效本身。
   function sfxTick() {
-    if (!sfxReady || sfxMuted) return;
+    if (!sfxReady) return;
     var now = performance.now();
     if (now - lastTickAt < 70) return;   // 快速横扫时别连成一片噪声
     lastTickAt = now;
     sfxNoiseBurst(2600, 2600, 1.6, 0.05, 0.05, 1.6, 0);
   }
 
-  // 开关
-  var sfxBtn = document.getElementById('sfxToggle');
-  function applySfxUI() {
-    if (!sfxBtn) return;
-    var label = sfxMuted ? '开启音效' : '关闭音效';
-    sfxBtn.setAttribute('aria-pressed', sfxMuted ? 'true' : 'false');
-    sfxBtn.setAttribute('aria-label', label);
-    sfxBtn.setAttribute('title', label);
-  }
-  applySfxUI();
-  if (sfxBtn) {
-    sfxBtn.addEventListener('click', function () {
-      sfxUnlock();                        // 这次点击本身就是解锁时机
-      sfxMuted = !sfxMuted;
-      applySfxUI();
-      try { localStorage.setItem('yys-sfx', sfxMuted ? 'off' : 'on'); } catch (err) {}
-      if (!sfxMuted) sfxTick();           // 重新开启时给一声确认
-    });
-  }
-
   // 首次手势解锁（捕获阶段挂，保证早于卡片自身的 click 处理）
   function sfxFirstGesture() {
-    // 静音状态下不急着建 AudioContext —— 省一个常驻的音频上下文。
-    // 之后用户点开关打开音效时，那次点击本身就是手势，照样来得及解锁。
-    if (!sfxMuted) sfxUnlock();
+    sfxUnlock();
     window.removeEventListener('pointerdown', sfxFirstGesture, true);
     window.removeEventListener('keydown', sfxFirstGesture, true);
     window.removeEventListener('touchstart', sfxFirstGesture, true);
@@ -1054,7 +1381,7 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
         var sp = sfxCtx.suspend();
         if (sp && sp.catch) sp.catch(function () {});
       }
-    } else if (!sfxMuted && sfxCtx.state === 'suspended') {
+    } else if (sfxCtx.state === 'suspended') {
       sfxSafeResume();
     }
   }, { passive: true });
@@ -1091,7 +1418,7 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
       item.el.classList.toggle('flipped', item.flipped);
       sfxFlip();
       // 触屏上的"触感"：8ms 的一下轻震，和音效共用一个开关
-      if (!sfxMuted && navigator.vibrate) {
+      if (navigator.vibrate) {
         try { navigator.vibrate(8); } catch (err) {}
       }
     });
@@ -1279,6 +1606,405 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   } else {
     window.addEventListener('load', function () { setTimeout(warmup, 1200); });
   }
+})();
+
+// ==================== 背景音乐 ====================
+// 曲目清单在 music/manifest.js，由 tools/gen_music_manifest.py 扫描 music/ 目录生成：
+// 想把歌加进来，就把文件丢进 music/ 再跑一次那个脚本，不必碰这个文件。
+//
+// 关于「进站即响」——
+// 浏览器（Chrome / Safari / Edge / Firefox 都一样）禁止页面在用户做出任何交互之前
+// 播放有声的音频，这是规范层面的硬规则，没有可靠的绕法。所以这里做的是
+// 「能播就直接播，被拒就等第一个手势」：用户点一下、按一下键、碰一下屏幕，
+// 音乐立刻起身，并做 1.4s 淡入，不会「啪」地砸出来。
+(function () {
+  'use strict';
+
+  var bar = document.getElementById('bgmBar');
+  if (!bar) return;
+  var titleEl   = document.getElementById('bgmTitle');
+  var coverEl   = document.getElementById('bgmCover');
+  var btnMin    = document.getElementById('bgmMin');
+  var btnMini   = document.getElementById('bgmMini');
+  var countEl   = document.getElementById('bgmCount');
+  var timeEl    = document.getElementById('bgmTime');
+  var fillEl    = document.getElementById('bgmFill');
+  var knobEl    = document.getElementById('bgmKnob');
+  var seekEl    = document.getElementById('bgmSeek');
+  var btnPrev   = document.getElementById('bgmPrev');
+  var btnPlay   = document.getElementById('bgmPlay');
+  var btnNext   = document.getElementById('bgmNext');
+  var btnMute   = document.getElementById('bgmMute');
+  var volEl     = document.getElementById('bgmVol');
+  var volFillEl = document.getElementById('bgmVolFill');
+  var volKnobEl = document.getElementById('bgmVolKnob');
+
+  // 稳态音量：听得见，但不跟人抢注意力 —— 背景音乐不该比翻牌声更抢戏
+  var VOL_DEFAULT = 0.4;
+  var FADE_IN  = 1400;
+  var FADE_OUT = 320;
+
+  var tracks = (window.YYS_TRACKS || []).filter(function (t) {
+    return t && typeof t.file === 'string' && t.file;
+  });
+  // 还没放歌：控制条不出现，也不额外发一个请求出去
+  if (!tracks.length) return;
+
+  var el = null;
+  var idx = 0;
+  var fadeTimer = 0;
+  var armed = false;
+  var resumeAfterHidden = false;
+  var failStreak = 0;
+  // 音量基准值。淡入淡出只在「当前音量」和「这个基准」之间插值 ——
+  // 淡入淡出改了 el.volume，但用户设的基准不能跟着被冲掉，否则下一首又从 0.4 起。
+  var vol = VOL_DEFAULT;
+  var muted = false;
+
+  // 淡入淡出要去的目标：静音就是 0
+  function targetVol() { return muted ? 0 : vol; }
+
+  // 能解锁音频的事件。这里刻意不含 scroll / wheel ——
+  // 它们常伴随真实交互，但按规范不算「用户激活」，解锁不了音频。
+  var GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'];
+
+  // ---- 音量渐变 ----
+  // 用 setInterval 而不是 requestAnimationFrame：rAF 在后台标签页会停摆，
+  // 音量会卡在半路（切歌时正好切走标签页就会撞上）。
+  function fadeTo(to, ms, done) {
+    clearInterval(fadeTimer);
+    if (!el) { if (done) done(); return; }
+    var from = el.volume;
+    var steps = Math.max(1, Math.round(ms / 40));
+    var i = 0;
+    fadeTimer = setInterval(function () {
+      i++;
+      el.volume = Math.max(0, Math.min(1, from + (to - from) * (i / steps)));
+      if (i >= steps) {
+        clearInterval(fadeTimer);
+        el.volume = to;
+        if (done) done();
+      }
+    }, 40);
+  }
+
+  // 封面：清单里给了 cover 就用它，否则清掉行内样式退回 CSS 里那张面具牌背。
+  // 用行内 backgroundImage 而不是换 <img>：铺法（居中裁切）由 CSS 的
+  // .bgm-cover / .is-art 两条规则管，JS 只负责换图。
+  // 展开态的封面和收起态的圆钮共用同一张图，所以一起设。
+  function paintArt(el, url) {
+    if (!el) return;
+    if (url) {
+      el.style.backgroundImage = 'url("' + encodeURI(url) + '")';
+      el.classList.add('is-art');
+    } else {
+      el.style.backgroundImage = '';
+      el.classList.remove('is-art');
+    }
+  }
+  function setCover(url) {
+    paintArt(coverEl, url);
+    paintArt(btnMini, url);
+  }
+
+  function paint() {
+    var t = tracks[idx];
+    if (titleEl) titleEl.textContent = t.title || t.file;
+    if (countEl) countEl.textContent = pad2(idx + 1) + ' / ' + pad2(tracks.length);
+    setCover(t.cover);
+    // 收起后圆钮上没有文字，只能靠 title / aria 告诉读屏用户现在在放什么
+    if (btnMini) {
+      var mn = '展开播放器：' + (t.title || t.file);
+      btnMini.setAttribute('aria-label', mn);
+      btnMini.setAttribute('title', mn);
+    }
+    var playing = !!el && !el.paused;
+    // 播放态同时写在小按钮和整条上：小按钮切图标，整条给封面/配色用。
+    // 状态只有 DOM 这一份，样式和验证脚本都只认它，不会和 JS 变量走失。
+    btnPlay.setAttribute('data-playing', playing ? 'true' : 'false');
+    bar.setAttribute('data-playing', playing ? 'true' : 'false');
+    var label = playing ? '暂停' : '播放';
+    btnPlay.setAttribute('aria-label', label);
+    btnPlay.setAttribute('title', label);
+    paintVol();
+    tickTime();
+  }
+
+  function remember() {
+    try {
+      localStorage.setItem('yys-bgm', String(idx));
+      localStorage.setItem('yys-bgm-off', (el && el.paused) ? '1' : '0');
+      localStorage.setItem('yys-bgm-vol', vol.toFixed(2));
+      localStorage.setItem('yys-bgm-mute', muted ? '1' : '0');
+    } catch (err) {}
+  }
+
+  function tickProgress() {
+    if (!el) return;
+    var d = el.duration;
+    var r = (d && isFinite(d) && d > 0) ? (el.currentTime / d) : 0;
+    paintTrack(fillEl && fillEl.parentNode, fillEl, knobEl, r);
+    if (seekEl) seekEl.setAttribute('aria-valuenow', Math.round(clamp01(r) * 100));
+    tickTime();
+  }
+
+  // ---- 小工具 ----
+  function clamp01(v) { return v > 1 ? 1 : v < 0 ? 0 : (isFinite(v) ? v : 0); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  // 秒 -> m:ss。duration 在元数据到位前是 NaN，不兜住就会渲染出 "NaN:NaN"
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    s = Math.floor(s);
+    return Math.floor(s / 60) + ':' + pad2(s % 60);
+  }
+
+  // 把 0~1 的比例画到「已播段 + 把手」上。
+  // 已播段走 scaleX、把手走 translateX —— 都只碰合成属性，不逐帧触发布局。
+  // 把手必须放在被 scale 的元素之外：缩放过的手柄会被压成椭圆。
+  function paintTrack(rail, fill, knob, r) {
+    r = clamp01(r);
+    if (fill) fill.style.transform = 'scaleX(' + r.toFixed(4) + ')';
+    if (knob && rail) knob.style.transform = 'translateX(' + (r * rail.clientWidth).toFixed(1) + 'px)';
+    return r;
+  }
+
+  function paintVol() {
+    var rail = volFillEl && volFillEl.parentNode;
+    var r = paintTrack(rail, volFillEl, volKnobEl, muted ? 0 : vol);
+    if (btnMute) {
+      btnMute.setAttribute('data-muted', muted ? 'true' : 'false');
+      var l = muted ? '取消静音' : '静音';
+      btnMute.setAttribute('aria-label', l);
+      btnMute.setAttribute('title', l);
+    }
+    if (volEl) volEl.setAttribute('aria-valuenow', Math.round(r * 100));
+  }
+
+  function tickTime() {
+    if (!timeEl || !el) return;
+    timeEl.textContent = fmt(el.currentTime) + ' / ' + fmt(el.duration);
+  }
+
+  // ---- 进度 / 音量的拖动定位 ----
+  // 用 pointer 事件而不是 mousedown：一套代码同时覆盖鼠标、触屏和手写笔。
+  // setPointerCapture 保证指针移出控件之后还能接着拖。
+  function bindDrag(trackEl, opts) {
+    if (!trackEl) return;
+    var dragging = false;
+    function ratioOf(ev) {
+      var r = trackEl.getBoundingClientRect();
+      if (!r.width) return 0;
+      return clamp01((ev.clientX - r.left) / r.width);
+    }
+    trackEl.addEventListener('pointerdown', function (ev) {
+      dragging = true;
+      try { trackEl.setPointerCapture(ev.pointerId); } catch (e) {}
+      opts.set(ratioOf(ev));
+      ev.preventDefault();   // 别顺手把页面文字选中
+    });
+    trackEl.addEventListener('pointermove', function (ev) {
+      if (dragging) opts.set(ratioOf(ev));
+    });
+    function end(ev) {
+      if (!dragging) return;
+      dragging = false;
+      try { trackEl.releasePointerCapture(ev.pointerId); } catch (e) {}
+      if (opts.done) opts.done();
+    }
+    trackEl.addEventListener('pointerup', end);
+    trackEl.addEventListener('pointercancel', end);
+    // 键盘也要能用：Tab 进来后左右键微调，Shift 加速，Home/End 到两端
+    trackEl.addEventListener('keydown', function (ev) {
+      var step = ev.shiftKey ? 0.1 : 0.02;
+      var now = opts.get ? opts.get() : 0;
+      var next;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') next = now + step;
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') next = now - step;
+      else if (ev.key === 'Home') next = 0;
+      else if (ev.key === 'End') next = 1;
+      else return;
+      ev.preventDefault();
+      opts.set(clamp01(next));
+      if (opts.done) opts.done();
+    });
+  }
+
+  // ---- 起播：先试，被拒就等手势 ----
+  function start() {
+    if (!el || !el.paused) return;
+    el.volume = 0;
+    var p = el.play();
+    if (!p || !p.then) { fadeTo(targetVol(), FADE_IN); paint(); return; }
+    p.then(function () {
+      failStreak = 0;
+      fadeTo(targetVol(), FADE_IN);
+      paint();
+    }).catch(function () {
+      // 被拦下不是错误，是「还没人碰过这个页面」—— 挂上第一个手势等着
+      arm();
+    });
+  }
+
+  function arm() {
+    if (armed) return;
+    armed = true;
+    for (var i = 0; i < GESTURES.length; i++) {
+      window.addEventListener(GESTURES[i], kick, true);
+    }
+  }
+
+  function kick(e) {
+    for (var i = 0; i < GESTURES.length; i++) {
+      window.removeEventListener(GESTURES[i], kick, true);
+    }
+    armed = false;
+    // 手势落在控制条上时不要抢跑，交给按钮自己的处理器。
+    // 否则这里先 el.play()（el.paused 立刻变 false），紧接着按钮那一下 click
+    // 判断「正在播」就走了暂停分支 —— 一次点击被自己抵消掉。
+    // 表现是「首次交互直接点播放键没反应，再点一下才开始」，之后整体错位一格，
+    // 也就是用户看到的「暂停键不好使」。
+    if (e && e.target && bar.contains(e.target)) return;
+    start();
+  }
+
+  // ---- 切歌：先淡出，换源，再淡入。硬切会有一声明显的爆音 ----
+  function switchTo(i) {
+    var n = tracks.length;
+    idx = ((i % n) + n) % n;
+    var t = tracks[idx];
+
+    fadeTo(0, FADE_OUT, function () {
+      el.src = encodeURI('./music/' + t.file);
+      el.load();
+      el.volume = 0;
+      tickProgress();
+      paint();
+      remember();
+      var p = el.play();
+      if (!p || !p.then) { fadeTo(targetVol(), 700); paint(); return; }
+      p.then(function () { failStreak = 0; fadeTo(targetVol(), 700); paint(); })
+       .catch(function () { arm(); });
+    });
+  }
+
+  // ---- 初始化 ----
+  var savedIdx = 0, wantOff = false;
+  try {
+    savedIdx = parseInt(localStorage.getItem('yys-bgm'), 10) || 0;
+    wantOff = localStorage.getItem('yys-bgm-off') === '1';
+    var savedVol = parseFloat(localStorage.getItem('yys-bgm-vol'));
+    if (isFinite(savedVol) && savedVol >= 0 && savedVol <= 1) vol = savedVol;
+    muted = localStorage.getItem('yys-bgm-mute') === '1';
+  } catch (err) {}
+  idx = (savedIdx >= 0 && savedIdx < tracks.length) ? savedIdx : 0;
+
+  el = new Audio();
+  el.preload = 'auto';
+  el.volume = 0;
+  el.src = encodeURI('./music/' + tracks[idx].file);
+
+  el.addEventListener('timeupdate', tickProgress);
+  el.addEventListener('loadstart', tickProgress);
+  el.addEventListener('ended', function () { switchTo(idx + 1); });  // 播完自动下一首
+  el.addEventListener('play', paint);
+  el.addEventListener('pause', paint);
+  el.addEventListener('error', function () {
+    // 某个文件缺了或没传上去：跳过它，别把整条链卡死。
+    // 但也要防止「全都坏了」时无限空转 —— 转够一圈就收摊。
+    failStreak++;
+    if (failStreak >= tracks.length) {
+      bar.classList.remove('is-ready');
+      return;
+    }
+    switchTo(idx + 1);
+  });
+
+  btnPlay.addEventListener('click', function () {
+    if (el.paused) {
+      start();
+    } else {
+      // 暂停也走淡出：硬切会有一声明显的爆音
+      fadeTo(0, 400, function () { el.pause(); paint(); remember(); });
+    }
+  });
+  btnPrev.addEventListener('click', function () { switchTo(idx - 1); });
+  btnNext.addEventListener('click', function () { switchTo(idx + 1); });
+  btnMute.addEventListener('click', function () {
+    muted = !muted;
+    // 静音只改音量，不动暂停态 —— 取消静音后音乐从原处接着往下走
+    fadeTo(targetVol(), 220);
+    paintVol();
+    remember();
+  });
+
+  // ---- 收起 / 展开 ----
+  // 状态只挂在 <body> 的类上（CSS 据此切换谁显示），JS 不另存一份布尔值 ——
+  // 两份状态迟早会走失。刻意不写 localStorage：需求是"每次进站都是展开的"。
+  function setCollapsed(on) {
+    document.body.classList.toggle('bgm-min', !!on);
+    // 焦点跟着一起搬，否则用键盘的人收起之后焦点会掉到 body 上
+    var target = on ? btnMini : btnMin;
+    if (target && target.focus) {
+      try { target.focus({ preventScroll: true }); } catch (err) { target.focus(); }
+    }
+  }
+  btnMin.addEventListener('click', function () { setCollapsed(true); });
+  btnMini.addEventListener('click', function () { setCollapsed(false); });
+
+  // 进度拖拽：元数据没到位时 duration 是 NaN，这时不给定位
+  bindDrag(seekEl, {
+    set: function (r) {
+      var d = el && el.duration;
+      if (!d || !isFinite(d) || d <= 0) return;
+      el.currentTime = r * d;
+      tickProgress();
+    },
+    get: function () {
+      var d = el && el.duration;
+      return (d && isFinite(d) && d > 0) ? el.currentTime / d : 0;
+    },
+  });
+
+  bindDrag(volEl, {
+    set: function (r) {
+      // 拖动期间要把正在跑的淡入淡出停掉，否则它每 40ms 覆盖一次 el.volume，
+      // 手感就是「拖不动」
+      clearInterval(fadeTimer);
+      vol = r;
+      if (r > 0) muted = false;    // 从静音里一拖就顺带解除静音
+      if (el) el.volume = targetVol();
+      paintVol();
+    },
+    get: function () { return muted ? 0 : vol; },
+    done: remember,
+  });
+
+  // 窗口尺寸变了，把手的位置要按新的轨道宽度重算
+  window.addEventListener('resize', function () { tickProgress(); paintVol(); }, { passive: true });
+
+  // 切到后台就停。这是页面的背景音乐，人不在这个页面就不必让它继续占着音频通道，
+  // 也省流量省电 —— 和「离屏即停 rAF」是同一个取舍。
+  // 这里刻意不淡出：标签页已经看不见了，淡不淡没人听得出来，反而拖着一个
+  // 定时器在后台空跑。
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (!el.paused) {
+        resumeAfterHidden = true;
+        el.pause();
+        paint();
+      }
+    } else if (resumeAfterHidden) {
+      resumeAfterHidden = false;
+      start();
+    }
+  }, { passive: true });
+
+  bar.classList.add('is-ready');
+  paint();
+  tickProgress();
+
+  // 上次是用户自己按的暂停，这次就别擅自响起来
+  if (!wantOff) start();
 })();
 </script>
 </body>
