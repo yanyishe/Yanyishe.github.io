@@ -544,7 +544,8 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 /* ---- 背景音乐播放器 ----
    两种形态：
      · 展开 .bgm-bar  —— 默认就是这个
-     · 收起 .bgm-mini —— 右下角一张 54px 的唱片（黑胶盘面 + 中间转着封面），点一下展开
+     · 收起 .bgm-mini —— 贴着右边缘停靠的一张 76px 唱片（黑胶盘面 + 中间转着封面）
+   收起 = 面板整条向右滑出屏幕，唱片留在边缘接替它；点唱片再滑回来。
    收起时给 <body> 挂 .bgm-min，由 CSS 决定谁显示。状态不写 localStorage ——
    需求是「每次进站都是展开的」，记状态反而会和它打架。
 
@@ -597,7 +598,9 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
     color 0.3s ease,
     border-color 0.3s ease,
     box-shadow 0.3s ease,
-    transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
+    transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1),
+    opacity 0.26s ease,
+    visibility 0s linear 0s;
 }
 .bgm-bar.is-ready { display: flex; }
 .bgm-bar:hover {
@@ -609,13 +612,14 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 /* 键盘 Tab 进来也要亮起来，否则用键盘的人看不到自己停在哪儿 */
 .bgm-bar:focus-within { color: var(--bgm-ink-hi); border-color: var(--bgm-edge-hi); }
 
-/* 收起后只剩一张唱片：黑胶盘面 + 中间转起来的封面标贴。
-   放在播放器原来的位置，所以"点刚才那块地方"就能拿回来。
-   用圆形而不是方形 —— 唱片这个意象一眼就知道是播放器，方角缩略图看不出来。 */
+/* 收起后是一张唱片贴在右边缘：黑胶盘面 + 中间转起来的封面标贴。
+   面板不直接 display:none —— 那样收起是"闪没"。改成整条向右滑出屏幕，
+   视觉上就是"收到了侧边"，唱片停靠在边缘接替它。
+   圆形而不是方形 —— 唱片这个意象一眼就知道是播放器，方角缩略图看不出来。 */
 .bgm-mini {
-  position: fixed; right: 18px; bottom: 18px; z-index: 401;
+  position: fixed; right: -1px; bottom: 48px; z-index: 401;
   display: none;
-  width: 54px; height: 54px;
+  width: 76px; height: 76px;
   padding: 0;
   border: 1px solid var(--bgm-edge);
   border-radius: 50%;
@@ -635,23 +639,41 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
     box-shadow 0.3s ease;
 }
 .bgm-mini:hover {
-  transform: translateY(-3px) scale(1.04);
+  /* 贴边停靠，悬停往屏内探一点 —— "从侧边拽出来"的手感 */
+  transform: translateX(-5px) scale(1.03);
   border-color: var(--bgm-edge-hi);
   box-shadow: var(--bgm-shadow-hi);
 }
 .bgm-mini:focus-visible { outline: 2px solid var(--bgm-edge-hi); outline-offset: 3px; }
 
 /* 收起 / 展开的显隐切换。用 body 上的类当唯一状态源，
-   免得两个元素的可见性和 JS 变量各说各话。 */
-body.bgm-min .bgm-bar.is-ready { display: none; }
-body.bgm-min .bgm-mini { display: block; }
+   免得两个元素的可见性和 JS 变量各说各话。
+   面板这条的 visibility 要压到过渡结束才翻 hidden（收起方向），
+   展开方向走上面的基线规则（0s 立刻可见），两个方向才都顺。 */
+body.bgm-min .bgm-bar.is-ready {
+  transform: translateX(calc(100% + 26px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.32s cubic-bezier(0.5, 0, 0.7, 0.5),
+    opacity 0.26s ease,
+    visibility 0s linear 0.32s;
+}
+body.bgm-min .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease; }
+
+/* 唱片登场：从屏幕外滑到边缘停靠位，和面板滑出的方向呼应 */
+@keyframes bgm-mini-in { from { transform: translateX(40px); opacity: 0; } }
 
 /* 唱片中央的封面标贴 —— 转起来的就是它。
    没配封面时退回牌背的面具，数值和 .bgm-cover 一致。 */
 .bgm-mini-label {
   position: absolute; left: 50%; top: 50%;
-  width: 34px; height: 34px;
-  margin: -17px 0 0 -17px;
+  width: 48px; height: 48px;
+  margin: -24px 0 0 -24px;
   border-radius: 50%;
   background-color: var(--bgm-surface);
   background-image: url(./images/tarot-back.webp);
@@ -671,19 +693,19 @@ body.bgm-min .bgm-mini { display: block; }
 /* 中心孔：让"这是张唱片"这件事立住。不跟着转（转的是标贴）。 */
 .bgm-mini-hole {
   position: absolute; left: 50%; top: 50%;
-  width: 6px; height: 6px;
-  margin: -3px 0 0 -3px;
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
   border-radius: 50%;
   background: var(--bgm-knob);
   box-shadow: inset 0 0 0 1px var(--bgm-edge);
   pointer-events: none;
 }
 
-/* 展开箭头角标：压在唱片右下角，让人知道这玩意儿能点开。
-   刻意不裁边，让它稍微探出圆边一点，反而更醒目。 */
+/* 展开箭头角标：压在唱片左下角，让人知道这玩意儿能点开。
+   唱片贴的是右边缘，角标放右下会被屏幕边裁掉，所以挪到左下、朝屏内探出一点。 */
 .bgm-mini-badge {
-  position: absolute; right: -2px; bottom: -2px;
-  width: 20px; height: 20px;
+  position: absolute; left: -3px; bottom: -3px;
+  width: 26px; height: 26px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   background: var(--bgm-surface);
@@ -691,7 +713,7 @@ body.bgm-min .bgm-mini { display: block; }
   box-shadow: 0 0 0 1px var(--bgm-edge);
   pointer-events: none;
 }
-.bgm-mini-badge svg { width: 12px; height: 12px; display: block; }
+.bgm-mini-badge svg { width: 14px; height: 14px; display: block; }
 
 /* 封面。这首歌没配图时退回牌背的面具（面具正好落在牌面正中，放大就能裁到）；
    配了图就换成图 —— JS 会加上 .is-art，铺法随之切换。 */
@@ -866,7 +888,7 @@ body.bgm-min .bgm-mini { display: block; }
   .bgm-btn-main { width: 32px; height: 32px; }
   .bgm-btn { width: 30px; height: 30px; }
   .bgm-time { font-size: 11px; }
-  .bgm-mini { right: 10px; bottom: 10px; }
+  .bgm-mini { right: -1px; bottom: 22px; }
 }
 
 /* 视口收窄到两侧塞不下「近景列 + 间隔 + 远景列」时，收起远景列。
@@ -929,6 +951,7 @@ body.bgm-min .bgm-mini { display: block; }
   .bgm-mini:hover { transform: none; }
   /* 减少动态偏好下，唱片不转 —— 但它仍然通过边框明暗表示状态 */
   .bgm-mini-label { animation: none; }
+  .bgm-mini { animation: none; }
   .tarot-wrap::after { display: none; }
 }
 </style>

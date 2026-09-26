@@ -101,7 +101,13 @@ const READ_STATE = `(function(){
     ready: bar.classList.contains('is-ready'),
     // 收起态：显隐完全由 <body> 上的 .bgm-min 决定，所以几个量一起读
     collapsed: document.body.classList.contains('bgm-min'),
-    barVisible: getComputedStyle(bar).display !== 'none',
+    // 面板收起不再走 display:none（那样是"闪没"），而是滑出屏幕 + visibility/opacity 归零，
+    // 所以这里读"综合可见性"，探针在点击后等过渡跑完再取值
+    barVisible: (function () {
+      var s = getComputedStyle(bar);
+      return s.display !== 'none' && s.visibility !== 'hidden' &&
+             parseFloat(s.opacity || '1') > 0.5;
+    })(),
     miniVisible: mini ? getComputedStyle(mini).display !== 'none' : null,
     miniArt: miniLbl ? miniLbl.classList.contains('is-art') : null,
     miniUrl: miniLbl ? decodeURIComponent((miniLbl.style.backgroundImage || '')).slice(0, 90) : null,
@@ -109,6 +115,7 @@ const READ_STATE = `(function(){
     miniSpin: miniLbl ? getComputedStyle(miniLbl).animationPlayState : null,
     miniAnim: miniLbl ? getComputedStyle(miniLbl).animationName : null,
     miniSize: mr ? Math.round(mr.width) + 'x' + Math.round(mr.height) : null,
+    miniEdge: mr ? Math.round(window.innerWidth - mr.right) : null,
     miniRadius: mini ? getComputedStyle(mini).borderRadius : null,
     miniLabelSize: (function () {
       if (!miniLbl) return null;
@@ -708,23 +715,26 @@ const READ_STATE = `(function(){
         k1.miniUrl);
   check('唱片有可读的 aria 标签', /展开播放器/.test(k1.miniLabel || ''), k1.miniLabel);
 
-  // 唱片这个形状：按钮是圆的、标贴也是圆的，而且都在面板原来的角上
+  // 唱片这个形状：按钮是圆的、标贴也是圆的，贴着右边缘停靠
   check('收起态是正圆（按钮与中央标贴都是圆形）',
-        k1.miniSize === '54x54' && k1.miniRadius === '50%' &&
+        k1.miniSize === '76x76' && k1.miniRadius === '50%' &&
         !!k1.miniLabelSize && k1.miniLabelRadius === '50%',
         '按钮 ' + k1.miniSize + ' r=' + k1.miniRadius +
         '  标贴 ' + k1.miniLabelSize + ' r=' + k1.miniLabelRadius);
   check('中央标贴铺的是当前封面（不是兜底的面具）',
         k1.miniLabelArt === 'cover', 'background-size=' + k1.miniLabelArt);
+  check('唱片贴着右边缘停靠（侧边收起）',
+        k1.miniEdge !== null && k1.miniEdge >= -1 && k1.miniEdge <= 3,
+        '距右边缘 ' + k1.miniEdge + 'px');
 
   // 转不转要跟着播放态走 —— 这是"收起后也能看出在不在放"的全部依据
   check('在播时唱片在转', k1.miniSpin === 'running', 'animation-play-state=' + k1.miniSpin);
 
   const pb = await centerOf('#bgmPlay');
   if (k1.collapsed) {
-    // 这里用 element.click()（合成事件）是**刻意**的：收起时面板是 display:none，
-    // 没法派发真实鼠标事件。而且此刻只是把已经在播的音频叫停，
-    // 不需要「用户激活」—— 合成事件会假通过的坑只在"解锁自动播放"那一步。
+    // 这里用 element.click()（合成事件）是**刻意**的：收起时面板已滑出屏幕且
+    // pointer-events: none，没法派发真实鼠标事件。而且此刻只是把已经在播的
+    // 音频叫停，不需要「用户激活」—— 合成事件会假通过的坑只在"解锁自动播放"那一步。
     await evaluate('(function(){document.querySelector("#bgmPlay").click();return 1})()');
   }
   await sleep(1200);
@@ -732,7 +742,7 @@ const READ_STATE = `(function(){
   check('暂停后唱片停转（收起态也能看出没在放）',
         kPaused.miniSpin === 'paused', 'animation-play-state=' + kPaused.miniSpin);
   check('停转时唱片仍在（没有整个消失）',
-        kPaused.miniVisible === true && kPaused.miniSize === '54x54', kPaused.miniSize);
+        kPaused.miniVisible === true && kPaused.miniSize === '76x76', kPaused.miniSize);
   await shootClip('10-collapsed', '.bgm-mini');
 
   // 恢复播放，再展开
