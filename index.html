@@ -615,9 +615,11 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 /* 收起后是一张唱片贴在右边缘：黑胶盘面 + 中间转起来的封面标贴。
    面板不直接 display:none —— 那样收起是"闪没"。改成整条向右滑出屏幕，
    视觉上就是"收到了侧边"，唱片停靠在边缘接替它。
+   唱片钉在右侧边缘的**垂直中点**，而不是右下角 —— 贴边+居中才读作"收进侧边"，
+   放在角上怎么看都像一枚悬浮按钮。
    圆形而不是方形 —— 唱片这个意象一眼就知道是播放器，方角缩略图看不出来。 */
 .bgm-mini {
-  position: fixed; right: -1px; bottom: 48px; z-index: 401;
+  position: fixed; right: -1px; top: 50%; margin-top: -38px; z-index: 401;
   display: none;
   width: 76px; height: 76px;
   padding: 0;
@@ -888,7 +890,9 @@ body.bgm-min .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease; }
   .bgm-btn-main { width: 32px; height: 32px; }
   .bgm-btn { width: 30px; height: 30px; }
   .bgm-time { font-size: 11px; }
-  .bgm-mini { right: -1px; bottom: 22px; }
+  /* 桌面上唱片钉在右缘中点；手机上回到右下角 —— 那是拇指够得到的区，
+     居中那里既不好按，又会压住正在读的正文。 */
+  .bgm-mini { top: auto; bottom: 22px; margin-top: 0; right: -1px; }
 }
 
 /* 视口收窄到两侧塞不下「近景列 + 间隔 + 远景列」时，收起远景列。

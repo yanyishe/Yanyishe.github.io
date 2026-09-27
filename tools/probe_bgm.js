@@ -116,6 +116,7 @@ const READ_STATE = `(function(){
     miniAnim: miniLbl ? getComputedStyle(miniLbl).animationName : null,
     miniSize: mr ? Math.round(mr.width) + 'x' + Math.round(mr.height) : null,
     miniEdge: mr ? Math.round(window.innerWidth - mr.right) : null,
+    miniOffCenter: mr ? Math.round((mr.top + mr.height / 2) - window.innerHeight / 2) : null,
     miniRadius: mini ? getComputedStyle(mini).borderRadius : null,
     miniLabelSize: (function () {
       if (!miniLbl) return null;
@@ -726,6 +727,9 @@ const READ_STATE = `(function(){
   check('唱片贴着右边缘停靠（侧边收起）',
         k1.miniEdge !== null && k1.miniEdge >= -1 && k1.miniEdge <= 3,
         '距右边缘 ' + k1.miniEdge + 'px');
+  check('唱片钉在屏幕右侧的垂直中点（读作"收进侧边"而不是角上的悬浮钮）',
+        k1.miniOffCenter !== null && Math.abs(k1.miniOffCenter) <= 2,
+        '偏离垂直中点 ' + k1.miniOffCenter + 'px');
 
   // 转不转要跟着播放态走 —— 这是"收起后也能看出在不在放"的全部依据
   check('在播时唱片在转', k1.miniSpin === 'running', 'animation-play-state=' + k1.miniSpin);
