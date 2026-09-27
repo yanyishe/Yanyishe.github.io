@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>女神异闻录 · 人物人格测试</title>
-<link rel="preload" as="image" href="./images/banner.webp" fetchpriority="high">
-<link rel="preload" as="image" href="./images/persona-hero.webp" fetchpriority="high">
+<title>签订契约 · 人格测试 | Persona 30th</title>
 <link rel="icon" type="image/png" href="./images/favicon.png">
 <link rel="apple-touch-icon" href="./images/favicon-180.png">
+<meta name="description" content="24 道命运之问，找出与你灵魂共鸣的那一位 Persona 主角。">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -440,8 +439,6 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 }
 .explore-badge {
   position: relative;
-  /* 现在是 <a>，别让它带下划线 */
-  text-decoration: none;
   overflow: hidden;
   display: inline-flex; align-items: center; gap: 0.6rem;
   background: transparent;
@@ -478,6 +475,7 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   transition: transform 0.36s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .explore-badge:hover svg { transform: translateX(4px); }
+
 
 /* ========== 背景音乐播放器 ========== */
 .bgm-bar, .bgm-mini {
@@ -815,219 +813,91 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   .bgm-mini { animation: none; }
   .tarot-wrap::after { display: none; }
 }
+
+/* ========== 独立页面：把「浮层」还原成正常文档流 ==========
+   quiz.html 里这张卡片不再是盖在首页上的弹层，而是页面本身，
+   所以固定定位、透明度过渡这些"弹窗属性"要抵掉，保留它的视觉外壳。 */
+html, body { min-height: 100%; }
+body {
+  background: #16141e;
+  /* 天鹅绒房间那层暗红/紫的氛围，静态渐变就够，不引入 filter（省内存） */
+  background-image:
+    radial-gradient(circle at 20% 12%, rgba(201, 162, 74, 0.10), transparent 55%),
+    radial-gradient(circle at 82% 88%, rgba(139, 90, 154, 0.16), transparent 60%);
+  background-attachment: fixed;
+}
+.quiz-overlay {
+  position: static;
+  inset: auto;
+  z-index: auto;
+  display: flex;
+  min-height: 100vh;
+  padding: 72px 16px 40px;
+  background: transparent;
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+}
+.quiz-container { transform: none; transition: none; }
+
+/* 返回首页。放在卡片正上方，和卡片同一条中轴线上。 */
+.quiz-back {
+  position: fixed; top: 20px; left: 20px; z-index: 10;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid rgba(214, 166, 74, 0.4);
+  border-radius: 999px;
+  background: rgba(26, 24, 34, 0.86);
+  color: #f6ebd2;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+  text-decoration: none;
+  transition: border-color 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.quiz-back:hover { border-color: rgba(214, 166, 74, 0.85); transform: translateX(-3px); }
+.quiz-back svg { width: 14px; height: 14px; display: block; }
+
+/* 窄屏：返回按钮收到左上，卡片留白收窄 */
+@media (max-width: 620px) {
+  .quiz-overlay { padding: 64px 12px 24px; }
+  .quiz-container { padding: 26px 20px; }
+}
 </style>
 </head>
-<body class="layout-top">
+<body>
 
-<div class="bg-pattern" aria-hidden="true"></div>
-<div class="bg-logo" aria-hidden="true"></div>
-<div class="bg-hero" aria-hidden="true"></div>
+<a class="quiz-back" href="./index.html">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+       stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M11 5l-7 7 7 7M19 5l-7 7 7 7" />
+  </svg>
+  <span>返回首页</span>
+</a>
 
-<header class="hero-banner">
-  <img src="./images/banner.webp" width="2560" height="971" alt="Persona 30th Anniversary" fetchpriority="high" decoding="async">
-</header>
-
-<div class="tarot-layer" id="tarotLayer">
-
-  <div class="tarot-wrap tw-0" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="7" data-front="./images/tarot-00.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
+<!-- ========== 答题界面（隐藏状态） ========== -->
+<div class="quiz-overlay" id="quizOverlay">
+  <div class="quiz-container" id="quizContainer">
+    
+    <!-- 题目进度 -->
+    <div class="quiz-progress">
+      <div class="quiz-progress-bar" id="quizProgressBar"></div>
     </div>
-  </div>
-  <div class="tarot-wrap tw-1" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="7" data-front="./images/tarot-01.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-2" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="4" data-front="./images/tarot-02.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-3" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-5" data-front="./images/tarot-03.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-4" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="3" data-front="./images/tarot-04.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-5" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-4" data-front="./images/tarot-05.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-6" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-3" data-front="./images/tarot-06.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-7" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="4" data-front="./images/tarot-07.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-8" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="-3" data-front="./images/tarot-08.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-9" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="3" data-front="./images/tarot-09.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-10" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="5" data-front="./images/tarot-10.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-11" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-5" data-front="./images/tarot-11.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-12" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-2" data-front="./images/tarot-12.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-13" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="2" data-front="./images/tarot-13.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-14" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="3" data-front="./images/tarot-14.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-15" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-4" data-front="./images/tarot-15.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-16" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-10" data-front="./images/tarot-16.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-17" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="8" data-front="./images/tarot-17.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-18" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="4" data-front="./images/tarot-18.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-19" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="-6" data-front="./images/tarot-19.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-20" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="10" data-front="./images/tarot-20.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-21" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-9" data-front="./images/tarot-21.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-
-</div>
-
-<div class="content-wrap">
-  <main class="main-container">
-
-    <header class="header">
-      <div class="header-top">
-        <img src="./images/p30-logo.webp" width="240" height="101" alt="Persona 30th Anniversary Logo" class="header-logo" decoding="async">
-        <div class="header-text">
-          <h1 class="main-title">女神异闻录 · 人物人格测试</h1>
-          <p class="subhead-main">在他们的故事里，遇见你的另一面。</p>
-          <p class="subhead-sub">看看你是《女神异闻录》系列里的哪个角色。</p>
-        </div>
-      </div>
-
-      <!-- 单张 hero 图：透明背景，阴影贴合轮廓，不会有矩形白底 -->
-      <img src="./images/persona-hero.webp"
-           width="1440" height="816"
-           alt="女神异闻录系列角色群像"
-           class="hero-image"
-           decoding="async"
-           fetchpriority="high">
-    </header>
-
-    <div class="steps-grid">
-      <div class="step-card">
-        <div class="step-number">01</div>
-        <h3>跟着直觉选</h3>
-        <p>没有标准答案，选择更像你的那一个</p>
-      </div>
-      <div class="step-card">
-        <div class="step-number">02</div>
-        <h3>遇见你的角色</h3>
-        <p>24 道选择，找到与你最相像的 TA</p>
-      </div>
-      <div class="step-card">
-        <div class="step-number">03</div>
-        <h3>留下一张角色卡</h3>
-        <p>看见你们相似的地方，也带走专属结果</p>
-      </div>
+    
+    <!-- 题目区域 -->
+    <div class="quiz-question-area" id="quizQuestionArea">
+      <div class="quiz-index" id="quizIndex">Q1 / 24</div>
+      <h2 class="quiz-question" id="quizQuestionText">加载中...</h2>
+      <div class="quiz-options" id="quizOptions"></div>
     </div>
 
-    <section class="about-section">
-      <h2>关于这次探索</h2>
-      <p>
-        <span class="accent-crimson">24 次</span>命运的叩问，唤醒沉睡于心底的另一个自我。
-      </p>
-      <p>
-        命运的齿轮转动，让你在 <span class="accent-yellow">8 位角色</span>中，遇见那份独特的羁绊。
-      </p>
-      <div class="divider"></div>
-      <p>
-        无需掩饰，无需迎合。在面具的背后，直面你灵魂本来的<span class="accent-makoto">颜色</span>。
-      </p>
+    <!-- 结果区域 -->
+    <div class="quiz-result-area" id="quizResultArea" style="display: none;">
+      <div class="quiz-result-tag">你的灵魂契合者</div>
+      <h2 class="quiz-result-name" id="quizResultName">——</h2>
+      <p class="quiz-result-desc" id="quizResultDesc"></p>
+      <button class="quiz-restart-btn" id="quizRestartBtn">重新签订</button>
+    </div>
 
-      <!-- 底部按钮：天鹅绒房间风格的“签订契约” -->
-      <a class="explore-badge" id="startQuizBtn" href="./quiz.html">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-        </svg>
-        <span>签订契约</span>
-      </a>
-            <div class="quote-mark">"</div>
-    </section>
-
-  </main>
+  </div>
 </div>
 
 <!-- 背景音乐播放器 -->
@@ -1114,387 +984,571 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
 </button>
 
 <script src="./music/manifest.js"></script>
-
 <script>
 (function () {
   'use strict';
 
-  var layerEl = document.getElementById('tarotLayer');
-  var bgLogo = document.querySelector('.bg-logo');
-  var bgHero = document.querySelector('.bg-hero');
-  var banner = document.querySelector('.hero-banner');
+  // 你提供的 8 个角色数据
+  var characters = [
+    { name: "鸣上悠", en: "YU NARUKAMI", desc: "《女神异闻录4》男主角。沉稳冷静，拥有强烈的正义感与领导力，是特别搜查队的核心。" },
+    { name: "天野舞耶", en: "MAYA AMANO", desc: "《女神异闻录2 罚》女主角。坚强独立，在逆境中依然勇往直前，用乐观感染身边的人。" },
+    { name: "周防达哉", en: "TATSUYA SUOU", desc: "《女神异闻录2 罪》男主角。重情重义，为了守护重要的人可以牺牲一切，背负着沉重的命运。" },
+    { name: "藤堂尚也", en: "NAOYA TOUDOU", desc: "《女神异闻录1》男主角。温和善良，在命运的洪流中寻找自己的道路，重视伙伴与羁绊。" },
+    { name: "结城理", en: "MAKOTO YUKI", desc: "《女神异闻录3》男主角。外表冷淡，内心却充满了对生命意义的探寻，愿意为了他人献出一切。" },
+    { name: "汐见琴音", en: "KOTONE SHIOMI", desc: "《女神异闻录3》女主角。乐观开朗，用笑容面对命运的残酷，是团队中温暖的太阳。" },
+    { name: "雨宫莲", en: "REN AMAMIYA", desc: "《女神异闻录5》男主角。反抗不公，用怪盗的方式改变扭曲的世界，在黑暗中寻找真正的正义。" },
+    { name: "上城渚", en: "NAGISA KAMISHIRO", desc: "《女神异闻录5 X》男主角。充满好奇心与行动力，在全新的舞台中寻找真相，不断突破自我。" }
+  ];
 
-  var cards = Array.prototype.map.call(
-    document.querySelectorAll('.tarot-wrap'),
-    function (wrap) {
-      var rot = parseFloat(wrap.dataset.rotate) || 0;
-      wrap.style.setProperty('--rot', rot + 'deg');
-      return {
-        el: wrap,
-        card: wrap.querySelector('.tarot-card'),
-        front: wrap.querySelector('.tarot-front'),
-        depth: parseFloat(wrap.dataset.depth) || 0.5,
-        floatAmp: parseFloat(wrap.dataset.float) || 1,
-        hoverScale: wrap.dataset.layer === 'front' ? 1.12
-                  : wrap.dataset.layer === 'mid' ? 1.10 : 1.08,
-        frontSrc: wrap.dataset.front || '',
-        frontApplied: false,
-        hovered: false,
-        flipped: false,
-        pressed: false,
-        visible: true,
-        sCur: 1, lift: 0, tiltX: 0, tiltY: 0, pulse: 0,
-        rectX: 0, rectY: 0, rectW: 1, rectH: 1,
-        lx: NaN, ly: NaN, ls: NaN, ltx: NaN, lty: NaN
-      };
-    }
-  );
+  // 24 道题，每道题的选项会给特定角色加分
+  var questions = [
+    { q: "周末的午后，你更倾向于怎样度过？", options: [
+      { text: "和朋友一起外出，享受热闹的街道", scores: { "鸣上悠": 2, "雨宫莲": 1, "上城渚": 1 } },
+      { text: "一个人待在家里，看书或打游戏", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "当你目睹不公正的事情发生时，你的第一反应是？", options: [
+      { text: "立刻站出来，正面阻止对方", scores: { "周防达哉": 2, "雨宫莲": 2, "天野舞耶": 1 } },
+      { text: "先观察情况，用更巧妙的方式解决", scores: { "鸣上悠": 1, "藤堂尚也": 2, "上城渚": 1, "结城理": 1 } }
+    ]},
+    { q: "面对不可避免的离别，你会选择？", options: [
+      { text: "把回忆珍藏在心里，带着祝福继续前行", scores: { "汐见琴音": 2, "天野舞耶": 1, "上城渚": 1 } },
+      { text: "用自己的方式反抗命运，哪怕过程艰辛", scores: { "结城理": 2, "周防达哉": 2, "鸣上悠": 1 } }
+    ]},
+    { q: "你更认同哪种“面具”下的自我？", options: [
+      { text: "冷静而理性，在暗处观察并掌控全局", scores: { "藤堂尚也": 2, "结城理": 1, "鸣上悠": 1 } },
+      { text: "热情而感性，为了心中所想奋不顾身", scores: { "雨宫莲": 2, "天野舞耶": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "当朋友遇到困难向你求助时，你会？", options: [
+      { text: "毫不犹豫地伸出援手，哪怕自己会受牵连", scores: { "周防达哉": 2, "雨宫莲": 2, "汐见琴音": 1 } },
+      { text: "先帮对方分析局势，寻找最优解", scores: { "鸣上悠": 2, "藤堂尚也": 1, "结城理": 1 } }
+    ]},
+    { q: "你如何看待“规则”与“秩序”？", options: [
+      { text: "规则是用来保护大家的，应当遵守", scores: { "藤堂尚也": 2, "鸣上悠": 1, "汐见琴音": 1 } },
+      { text: "不合理的规则就应该被打破", scores: { "雨宫莲": 2, "周防达哉": 2, "天野舞耶": 1 } }
+    ]},
+    { q: "在团队中，你通常扮演什么角色？", options: [
+      { text: "领导者，负责统筹全局", scores: { "鸣上悠": 2, "周防达哉": 1, "雨宫莲": 1 } },
+      { text: "倾听者，默默支持大家", scores: { "藤堂尚也": 2, "结城理": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "面对失败和挫折，你的态度是？", options: [
+      { text: "总结经验，下次一定要赢回来", scores: { "雨宫莲": 2, "上城渚": 2, "天野舞耶": 1 } },
+      { text: "接受现实，从中寻找新的意义", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "你更喜欢哪种类型的音乐？", options: [
+      { text: "节奏感强、充满活力的流行乐", scores: { "汐见琴音": 2, "上城渚": 2, "天野舞耶": 1 } },
+      { text: "深沉、安静，能引发思考的曲子", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } }
+    ]},
+    { q: "如果拥有一种超能力，你希望是？", options: [
+      { text: "读心术，能看透他人的真实想法", scores: { "藤堂尚也": 2, "鸣上悠": 1, "上城渚": 1 } },
+      { text: "时间暂停，能拥有属于自己的瞬间", scores: { "结城理": 2, "周防达哉": 1, "雨宫莲": 1 } }
+    ]},
+    { q: "你如何看待“命运”？", options: [
+      { text: "命运是注定的，但我们可以选择如何面对", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } },
+      { text: "命运掌握在自己手中，绝不认输", scores: { "雨宫莲": 2, "周防达哉": 2, "天野舞耶": 1 } }
+    ]},
+    { q: "在一场重要的考试或比赛前，你会？", options: [
+      { text: "充分准备，把能做的都做到最好", scores: { "鸣上悠": 2, "藤堂尚也": 1, "上城渚": 1 } },
+      { text: "顺其自然，相信临场发挥", scores: { "天野舞耶": 2, "汐见琴音": 1, "周防达哉": 1 } }
+    ]},
+    { q: "你更喜欢什么样的朋友？", options: [
+      { text: "真诚坦率，有话直说", scores: { "周防达哉": 2, "雨宫莲": 1, "天野舞耶": 1 } },
+      { text: "温柔体贴，懂得倾听", scores: { "藤堂尚也": 2, "汐见琴音": 1, "结城理": 1 } }
+    ]},
+    { q: "当你感到迷茫时，你会？", options: [
+      { text: "找朋友聊聊，从他们那里获得力量", scores: { "汐见琴音": 2, "上城渚": 1, "天野舞耶": 1 } },
+      { text: "独自思考，直到找到答案", scores: { "结城理": 2, "鸣上悠": 1, "藤堂尚也": 1 } }
+    ]},
+    { q: "你如何看待“牺牲”这个词？", options: [
+      { text: "为了保护重要的人，牺牲是值得的", scores: { "结城理": 2, "周防达哉": 2, "鸣上悠": 1 } },
+      { text: "生命只有一次，应该好好珍惜", scores: { "汐见琴音": 2, "天野舞耶": 1, "上城渚": 1 } }
+    ]},
+    { q: "在陌生的环境里，你通常？", options: [
+      { text: "主动出击，快速结交新朋友", scores: { "上城渚": 2, "汐见琴音": 2, "天野舞耶": 1 } },
+      { text: "先观察，找到合适的机会再融入", scores: { "鸣上悠": 1, "结城理": 1, "藤堂尚也": 1 } }
+    ]},
+    { q: "你更倾向于相信？", options: [
+      { text: "眼见为实，证据和逻辑最重要", scores: { "鸣上悠": 2, "藤堂尚也": 1, "结城理": 1 } },
+      { text: "直觉和内心的感受", scores: { "天野舞耶": 1, "汐见琴音": 1, "上城渚": 2 } }
+    ]},
+    { q: "如果明天就是世界末日，你会？", options: [
+      { text: "和最重要的人在一起，平静度过", scores: { "结城理": 2, "汐见琴音": 1, "藤堂尚也": 1 } },
+      { text: "做一直想做但没敢做的事", scores: { "雨宫莲": 2, "周防达哉": 1, "上城渚": 1 } }
+    ]},
+    { q: "你如何看待“谎言”？", options: [
+      { text: "善意的谎言有时是必要的", scores: { "鸣上悠": 1, "天野舞耶": 1, "藤堂尚也": 1 } },
+      { text: "真相即使再残酷，也比谎言好", scores: { "周防达哉": 2, "结城理": 1, "雨宫莲": 1 } }
+    ]},
+    { q: "你觉得自己更像哪种动物？", options: [
+      { text: "狼，独立且忠诚于自己的族群", scores: { "周防达哉": 2, "雨宫莲": 1, "结城理": 1 } },
+      { text: "海豚，聪明且善于社交", scores: { "汐见琴音": 2, "上城渚": 2, "天野舞耶": 1 } }
+    ]},
+    { q: "面对别人的误解，你会？", options: [
+      { text: "努力解释，直到对方明白", scores: { "天野舞耶": 1, "汐见琴音": 1, "上城渚": 1 } },
+      { text: "清者自清，懒得解释", scores: { "结城理": 2, "周防达哉": 1, "藤堂尚也": 1 } }
+    ]},
+    { q: "你更喜欢哪种电影？", options: [
+      { text: "热血的动作片，充满激情", scores: { "雨宫莲": 2, "周防达哉": 1, "上城渚": 1 } },
+      { text: "发人深省的文艺片", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } }
+    ]},
+    { q: "在友情中，你最看重什么？", options: [
+      { text: "信任，一旦破碎就无法挽回", scores: { "周防达哉": 2, "鸣上悠": 1, "雨宫莲": 1 } },
+      { text: "陪伴，无论何时都在身边", scores: { "汐见琴音": 2, "藤堂尚也": 1, "天野舞耶": 1 } }
+    ]},
+    { q: "如果可以选择，你希望自己的“面具”是什么颜色？", options: [
+      { text: "蓝色，冷静、深邃，像大海一样", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } },
+      { text: "红色，热情、燃烧，像火焰一样", scores: { "雨宫莲": 2, "周防达哉": 1, "天野舞耶": 1 } }
+    ]}
+  ];
 
-  // 离屏卡片标记：收敛后跳过，降低每帧 CPU
-  if ('IntersectionObserver' in window) {
-    var cardObserver = new IntersectionObserver(function (entries) {
-      for (var i = 0; i < entries.length; i++) {
-        var entry = entries[i];
-        for (var j = 0; j < cards.length; j++) {
-          if (cards[j].el === entry.target) {
-            cards[j].visible = entry.isIntersecting;
-            break;
-          }
+  var currentIndex = 0;
+  var scores = {};
+
+  var overlay = document.getElementById('quizOverlay');
+  var btn = document.getElementById('startQuizBtn');
+  var indexEl = document.getElementById('quizIndex');
+  var qTextEl = document.getElementById('quizQuestionText');
+  var optsEl = document.getElementById('quizOptions');
+  var progressBar = document.getElementById('quizProgressBar');
+  var questionArea = document.getElementById('quizQuestionArea');
+  var resultArea = document.getElementById('quizResultArea');
+  var resultName = document.getElementById('quizResultName');
+  var resultDesc = document.getElementById('quizResultDesc');
+  var restartBtn = document.getElementById('quizRestartBtn');
+
+  // 独立答题页：进来就是答题，不需要先在首页点那个按钮。
+  // overlay.classList.add 保留着 —— 万一以后又把它嵌回首页当浮层，这段还能直接用。
+  overlay.classList.add("active");
+  resetQuiz();
+
+  // 重置并开始答题
+  function resetQuiz() {
+    currentIndex = 0;
+    scores = {};
+    characters.forEach(function (c) { scores[c.name] = 0; });
+    resultArea.style.display = 'none';
+    questionArea.style.display = 'block';
+    showQuestion();
+  }
+
+  // 显示当前题目
+  function showQuestion() {
+    var q = questions[currentIndex];
+    indexEl.textContent = 'Q' + (currentIndex + 1) + ' / ' + questions.length;
+    qTextEl.textContent = q.q;
+    progressBar.style.width = ((currentIndex) / questions.length * 100) + '%';
+    optsEl.innerHTML = '';
+
+    q.options.forEach(function (opt) {
+      var btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.textContent = opt.text;
+      btn.addEventListener('click', function () {
+        // 加分
+        for (var key in opt.scores) {
+          if (scores[key] !== undefined) scores[key] += opt.scores[key];
         }
-      }
-    }, { rootMargin: '200px' });
-    cards.forEach(function (item) { cardObserver.observe(item.el); });
+        currentIndex++;
+        if (currentIndex < questions.length) {
+          showQuestion();
+        } else {
+          showResult();
+        }
+      });
+      optsEl.appendChild(btn);
+    });
   }
 
-  function ensureFront(item) {
-    if (item.frontApplied || !item.frontSrc) return;
-    item.frontApplied = true;
-    item.front.style.backgroundImage = 'url("' + item.frontSrc + '")';
-  }
+  // 显示结果
+  function showResult() {
+    progressBar.style.width = '100%';
+    questionArea.style.display = 'none';
+    resultArea.style.display = 'block';
 
-  var targetX = 0, targetY = 0;
-  var smoothX = 0, smoothY = 0;
-  var mouseX = 0, mouseY = 0;
-  var idlePhase = 0;
-  var lastMoveTime = performance.now();
-  var IDLE_DELAY = 1200;
-  var currentLayout = 'top';
-  var running = false;
-  var rafId = 0;
-
-  window.addEventListener('mousemove', function (e) {
-    var cx = window.innerWidth / 2;
-    var cy = window.innerHeight / 2;
-    targetX = (e.clientX - cx) / cx;
-    targetY = (e.clientY - cy) / cy;
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-    lastMoveTime = performance.now();
-  }, { passive: true });
-
-  window.addEventListener('mouseleave', function () {
-    targetX = 0; targetY = 0;
-  }, { passive: true });
-
-  // ==================== 音效 ====================
-  var sfxCtx = null, sfxNoise = null, sfxReady = false;
-  var lastTickAt = 0;
-
-  function sfxSafeResume() {
-    if (!sfxCtx || !sfxCtx.resume) return;
-    var p = sfxCtx.resume();
-    if (p && p.catch) p.catch(function () {});
-  }
-
-  function sfxUnlock() {
-    if (sfxCtx) {
-      if (sfxCtx.state === 'suspended') sfxSafeResume();
-      return;
-    }
-    var AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return;
-    try { sfxCtx = new AC(); } catch (err) { sfxCtx = null; return; }
-
-    var n = Math.floor(sfxCtx.sampleRate * 0.4);
-    sfxNoise = sfxCtx.createBuffer(1, n, sfxCtx.sampleRate);
-    var d = sfxNoise.getChannelData(0);
-    for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-
-    sfxReady = true;
-    sfxSafeResume();
-  }
-
-  function sfxNoiseBurst(freqFrom, freqTo, q, peak, dur, rate, delay) {
-    var ac = sfxCtx, t = ac.currentTime + (delay || 0);
-    var src = ac.createBufferSource();
-    src.buffer = sfxNoise;
-    if (rate) src.playbackRate.value = rate;
-    var bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.Q.value = q;
-    bp.frequency.setValueAtTime(freqFrom, t);
-    if (freqTo && freqTo !== freqFrom) {
-      bp.frequency.exponentialRampToValueAtTime(freqTo, t + dur * 0.7);
-    }
-    var g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.012, dur * 0.3));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(bp); bp.connect(g); g.connect(ac.destination);
-    src.start(t); src.stop(t + dur + 0.02);
-  }
-
-  function sfxFlip() {
-    if (!sfxReady) return;
-    sfxNoiseBurst(900, 3400, 1.1, 0.17, 0.16, 1, 0);
-
-    var ac = sfxCtx, t = ac.currentTime + 0.04;
-    var o = ac.createOscillator();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(230, t);
-    o.frequency.exponentialRampToValueAtTime(118, t + 0.11);
-    var og = ac.createGain();
-    og.gain.setValueAtTime(0.0001, t);
-    og.gain.exponentialRampToValueAtTime(0.075, t + 0.022);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-    o.connect(og); og.connect(ac.destination);
-    o.start(t); o.stop(t + 0.18);
-  }
-
-  function sfxTick() {
-    if (!sfxReady) return;
-    var now = performance.now();
-    if (now - lastTickAt < 70) return;
-    lastTickAt = now;
-    sfxNoiseBurst(2600, 2600, 1.6, 0.05, 0.05, 1.6, 0);
-  }
-
-  function sfxFirstGesture() {
-    sfxUnlock();
-    window.removeEventListener('pointerdown', sfxFirstGesture, true);
-    window.removeEventListener('keydown', sfxFirstGesture, true);
-    window.removeEventListener('touchstart', sfxFirstGesture, true);
-  }
-  window.addEventListener('pointerdown', sfxFirstGesture, true);
-  window.addEventListener('keydown', sfxFirstGesture, true);
-  window.addEventListener('touchstart', sfxFirstGesture, true);
-
-  document.addEventListener('visibilitychange', function () {
-    if (!sfxCtx) return;
-    if (document.hidden) {
-      if (sfxCtx.suspend) {
-        var sp = sfxCtx.suspend();
-        if (sp && sp.catch) sp.catch(function () {});
-      }
-    } else if (sfxCtx.state === 'suspended') {
-      sfxSafeResume();
-    }
-  }, { passive: true });
-
-  cards.forEach(function (item) {
-    item.el.addEventListener('mouseenter', function (e) {
-      item.hovered = true;
-      var r = item.el.getBoundingClientRect();
-      item.rectX = r.left; item.rectY = r.top;
-      item.rectW = r.width || 1; item.rectH = r.height || 1;
-      if (e.clientX) { mouseX = e.clientX; mouseY = e.clientY; }
-      ensureFront(item);
-      sfxTick();
-    }, { passive: true });
-
-    item.el.addEventListener('mouseleave', function () {
-      item.hovered = false;
-    }, { passive: true });
-
-    item.el.addEventListener('mousedown', function () {
-      item.pressed = true;
-    }, { passive: true });
-
-    item.el.addEventListener('click', function (e) {
-      e.stopPropagation();
-      ensureFront(item);
-      item.flipped = !item.flipped;
-      item.pulse = 1;
-      item.el.classList.toggle('flipped', item.flipped);
-      sfxFlip();
-      if (navigator.vibrate) {
-        try { navigator.vibrate(8); } catch (err) {}
+    // 找出最高分（如果平局，随机选择一个）
+    var maxScore = -1;
+    var topChars = [];
+    characters.forEach(function (c) {
+      if (scores[c.name] > maxScore) {
+        maxScore = scores[c.name];
+        topChars = [c];
+      } else if (scores[c.name] === maxScore) {
+        topChars.push(c);
       }
     });
+    var topChar = topChars[Math.floor(Math.random() * topChars.length)];
+
+    resultName.textContent = topChar.name + ' / ' + topChar.en;
+    resultDesc.textContent = topChar.desc;
+  }
+
+  // 重新开始
+  restartBtn.addEventListener('click', function () {
+    resetQuiz();
   });
 
-  window.addEventListener('mouseup', function () {
-    for (var i = 0; i < cards.length; i++) cards[i].pressed = false;
-  }, { passive: true });
-
-  var lastLayoutCheck = 0;
-  function updateLayout() {
-    if (!banner) return;
-    var next = (window.scrollY || window.pageYOffset) > banner.offsetHeight * 0.7
-      ? 'scrolled' : 'top';
-    if (next !== currentLayout) {
-      currentLayout = next;
-      document.body.classList.toggle('layout-top', next === 'top');
-      document.body.classList.toggle('layout-scrolled', next === 'scrolled');
-      idlePhase = 0;
-      lastMoveTime = performance.now();
+  // 点击遮罩关闭（可选）
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
     }
-  }
-  window.addEventListener('scroll', function () {
-    var now = performance.now();
-    if (now - lastLayoutCheck < 100) return;
-    lastLayoutCheck = now;
-    updateLayout();
-  }, { passive: true });
-  window.addEventListener('resize', updateLayout, { passive: true });
-  updateLayout();
-
-  function syncLayerHeight() {
-    var cwEl = document.querySelector('.content-wrap');
-    var h = 0;
-    if (banner) h = Math.max(h, banner.offsetTop + banner.offsetHeight);
-    if (cwEl)   h = Math.max(h, cwEl.offsetTop + cwEl.offsetHeight);
-    h = Math.max(h, window.innerHeight);
-    document.documentElement.style.setProperty('--layer-h', h + 'px');
-  }
-  syncLayerHeight();
-  window.addEventListener('load', syncLayerHeight, { passive: true });
-  window.addEventListener('resize', syncLayerHeight, { passive: true });
-  if ('ResizeObserver' in window) {
-    new ResizeObserver(syncLayerHeight).observe(
-      document.querySelector('.content-wrap') || document.body);
-  }
-
-  function frame() {
-    var now = performance.now();
-    var isIdle = now - lastMoveTime > IDLE_DELAY;
-
-    if (isIdle) {
-      idlePhase += 0.012;
-      targetX = Math.sin(idlePhase * 0.8) * 0.45;
-      targetY = Math.cos(idlePhase * 0.6) * 0.35;
-    }
-
-    smoothX += (targetX - smoothX) * 0.06;
-    smoothY += (targetY - smoothY) * 0.06;
-
-    for (var i = 0; i < cards.length; i++) {
-      var item = cards[i];
-
-      // 不可见且已收敛 → 跳过
-      if (!item.visible && !item.hovered && !item.flipped &&
-          item.sCur === 1 && item.lift === 0 &&
-          item.tiltX === 0 && item.tiltY === 0 && item.pulse === 0) {
-        continue;
-      }
-
-      var d = item.depth;
-
-      var ttx = 0, tty = 0;
-      if (item.hovered && !item.flipped) {
-        var nx = (mouseX - item.rectX) / item.rectW * 2 - 1;
-        var ny = (mouseY - item.rectY) / item.rectH * 2 - 1;
-        nx = nx < -1 ? -1 : (nx > 1 ? 1 : nx);
-        ny = ny < -1 ? -1 : (ny > 1 ? 1 : ny);
-        ttx = ny * 14;
-        tty = -nx * 16;
-      }
-
-      item.pulse *= 0.86;
-      if (item.pulse < 0.01) item.pulse = 0;
-
-      var sTarget = (item.hovered && !item.flipped ? item.hoverScale : 1)
-                  + item.pulse * 0.12;
-      if (item.pressed) sTarget *= 0.94;
-      var liftTarget = item.hovered ? (item.pressed ? 5 : 8) : 0;
-
-      item.tiltX += (ttx - item.tiltX) * 0.16;
-      item.tiltY += (tty - item.tiltY) * 0.16;
-      item.lift += (liftTarget - item.lift) * 0.18;
-      item.sCur += (sTarget - item.sCur) * 0.18;
-
-      var tiltX = round1(item.tiltX - smoothY * 5 * d);
-      var tiltY = round1(item.tiltY);
-      var px = round2(-smoothX * 18 * d);
-      var py = round2(-smoothY * 14 * d - item.lift
-        + (isIdle
-            ? Math.sin(idlePhase * 1.8 + d * 4) * 6 * item.floatAmp
-            : Math.sin(idlePhase * 1.0 + d * 3) * 2 * item.floatAmp));
-      var scale = round3(item.sCur);
-
-      if (px === item.lx && py === item.ly && scale === item.ls &&
-          tiltX === item.ltx && tiltY === item.lty) {
-        continue;
-      }
-
-      item.lx = px; item.ly = py; item.ls = scale;
-      item.ltx = tiltX; item.lty = tiltY;
-      item.el.style.transform =
-        'translate3d(' + px + 'px,' + py + 'px,0) scale(' + scale + ')' +
-        (tiltX || tiltY
-          ? ' rotateX(' + tiltX + 'deg) rotateY(' + tiltY + 'deg)'
-          : '');
-    }
-
-    if (bgLogo) {
-      bgLogo.style.transform =
-        'rotate(-8deg) translate3d(' + round2(-smoothX * 8) + 'px,' + round2(-smoothY * 6) + 'px,0)';
-    }
-    if (bgHero) {
-      bgHero.style.transform =
-        'rotate(6deg) translate3d(' + round2(-smoothX * 10) + 'px,' + round2(-smoothY * 8) + 'px,0)';
-    }
-
-    rafId = requestAnimationFrame(frame);
-  }
-
-  function round2(v) { return Math.round(v * 100) / 100; }
-  function round1(v) { return Math.round(v * 10) / 10; }
-  function round3(v) { return Math.round(v * 1000) / 1000; }
-
-  function start() {
-    if (running) return;
-    running = true;
-    rafId = requestAnimationFrame(frame);
-  }
-  function stop() {
-    if (!running) return;
-    running = false;
-    cancelAnimationFrame(rafId);
-  }
-
-  var heroVisible = true;
-  document.addEventListener('visibilitychange', function () {
-    if (document.hidden) stop();
-    else if (heroVisible) start();
-  }, { passive: true });
-
-  if (layerEl && 'IntersectionObserver' in window) {
-    new IntersectionObserver(function (entries) {
-      heroVisible = entries[0].isIntersecting;
-      if (heroVisible && !document.hidden) start();
-      else stop();
-    }, { rootMargin: '100px' }).observe(layerEl);
-  }
-
-  start();
-
-  function warmup() {
-    cards.forEach(function (item) {
-      if (!item.frontSrc) return;
-      var img = new Image();
-      img.decoding = 'async';
-      img.src = item.frontSrc;
-    });
-  }
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(warmup, { timeout: 3000 });
-  } else {
-    window.addEventListener('load', function () { setTimeout(warmup, 1200); });
-  }
+  });
 })();
 
-// ==================== 答题逻辑 ====================
+
+// ==================== 背景音乐 ====================
+(function () {
+  'use strict';
+
+  var bar = document.getElementById('bgmBar');
+  if (!bar) return;
+  var titleEl   = document.getElementById('bgmTitle');
+  var coverEl   = document.getElementById('bgmCover');
+  var btnMin    = document.getElementById('bgmMin');
+  var btnMini   = document.getElementById('bgmMini');
+  var miniLabel = document.getElementById('bgmMiniLabel');
+  var countEl   = document.getElementById('bgmCount');
+  var timeEl    = document.getElementById('bgmTime');
+  var fillEl    = document.getElementById('bgmFill');
+  var knobEl    = document.getElementById('bgmKnob');
+  var seekEl    = document.getElementById('bgmSeek');
+  var btnPrev   = document.getElementById('bgmPrev');
+  var btnPlay   = document.getElementById('bgmPlay');
+  var btnNext   = document.getElementById('bgmNext');
+  var btnMute   = document.getElementById('bgmMute');
+  var volEl     = document.getElementById('bgmVol');
+  var volFillEl = document.getElementById('bgmVolFill');
+  var volKnobEl = document.getElementById('bgmVolKnob');
+
+  var VOL_DEFAULT = 0.4;
+  var FADE_IN  = 1400;
+  var FADE_OUT = 320;
+
+  var tracks = (window.YYS_TRACKS || []).filter(function (t) {
+    return t && typeof t.file === 'string' && t.file;
+  });
+  if (!tracks.length) return;
+
+  var el = null;
+  var idx = 0;
+  var fadeTimer = 0;
+  var armed = false;
+  var resumeAfterHidden = false;
+  var failStreak = 0;
+  var vol = VOL_DEFAULT;
+  var muted = false;
+
+  function targetVol() { return muted ? 0 : vol; }
+
+  var GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'];
+
+  function fadeTo(to, ms, done) {
+    clearInterval(fadeTimer);
+    if (!el) { if (done) done(); return; }
+    var from = el.volume;
+    var steps = Math.max(1, Math.round(ms / 40));
+    var i = 0;
+    fadeTimer = setInterval(function () {
+      i++;
+      el.volume = Math.max(0, Math.min(1, from + (to - from) * (i / steps)));
+      if (i >= steps) {
+        clearInterval(fadeTimer);
+        el.volume = to;
+        if (done) done();
+      }
+    }, 40);
+  }
+
+  function paintArt(el, url) {
+    if (!el) return;
+    if (url) {
+      el.style.backgroundImage = 'url("' + encodeURI(url) + '")';
+      el.classList.add('is-art');
+    } else {
+      el.style.backgroundImage = '';
+      el.classList.remove('is-art');
+    }
+  }
+  function setCover(url) {
+    paintArt(coverEl, url);
+    paintArt(miniLabel, url);
+  }
+
+  function paint() {
+    var t = tracks[idx];
+    if (titleEl) titleEl.textContent = t.title || t.file;
+    if (countEl) countEl.textContent = pad2(idx + 1) + ' / ' + pad2(tracks.length);
+    setCover(t.cover);
+    if (btnMini) {
+      var mn = '展开播放器：' + (t.title || t.file);
+      btnMini.setAttribute('aria-label', mn);
+      btnMini.setAttribute('title', mn);
+    }
+    var playing = !!el && !el.paused;
+    btnPlay.setAttribute('data-playing', playing ? 'true' : 'false');
+    bar.setAttribute('data-playing', playing ? 'true' : 'false');
+    if (btnMini) btnMini.setAttribute('data-playing', playing ? 'true' : 'false');
+    var label = playing ? '暂停' : '播放';
+    btnPlay.setAttribute('aria-label', label);
+    btnPlay.setAttribute('title', label);
+    paintVol();
+    tickTime();
+  }
+
+  // 合并存储：一次 setItem 替代原来四次
+  function remember() {
+    try {
+      localStorage.setItem('yys-bgm', JSON.stringify({
+        idx: idx,
+        off: (el && el.paused) ? 1 : 0,
+        vol: vol.toFixed(2),
+        mute: muted ? 1 : 0,
+      }));
+    } catch (err) {}
+  }
+
+  function tickProgress() {
+    if (!el) return;
+    var d = el.duration;
+    var r = (d && isFinite(d) && d > 0) ? (el.currentTime / d) : 0;
+    paintTrack(fillEl && fillEl.parentNode, fillEl, knobEl, r);
+    if (seekEl) seekEl.setAttribute('aria-valuenow', Math.round(clamp01(r) * 100));
+    tickTime();
+  }
+
+  function clamp01(v) { return v > 1 ? 1 : v < 0 ? 0 : (isFinite(v) ? v : 0); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    s = Math.floor(s);
+    return Math.floor(s / 60) + ':' + pad2(s % 60);
+  }
+
+  function paintTrack(rail, fill, knob, r) {
+    r = clamp01(r);
+    if (fill) fill.style.transform = 'scaleX(' + r.toFixed(4) + ')';
+    if (knob && rail) knob.style.transform = 'translateX(' + (r * rail.clientWidth).toFixed(1) + 'px)';
+    return r;
+  }
+
+  function paintVol() {
+    var rail = volFillEl && volFillEl.parentNode;
+    var r = paintTrack(rail, volFillEl, volKnobEl, muted ? 0 : vol);
+    if (btnMute) {
+      btnMute.setAttribute('data-muted', muted ? 'true' : 'false');
+      var l = muted ? '取消静音' : '静音';
+      btnMute.setAttribute('aria-label', l);
+      btnMute.setAttribute('title', l);
+    }
+    if (volEl) volEl.setAttribute('aria-valuenow', Math.round(r * 100));
+  }
+
+  function tickTime() {
+    if (!timeEl || !el) return;
+    timeEl.textContent = fmt(el.currentTime) + ' / ' + fmt(el.duration);
+  }
+
+  function bindDrag(trackEl, opts) {
+    if (!trackEl) return;
+    var dragging = false;
+    function ratioOf(ev) {
+      var r = trackEl.getBoundingClientRect();
+      if (!r.width) return 0;
+      return clamp01((ev.clientX - r.left) / r.width);
+    }
+    trackEl.addEventListener('pointerdown', function (ev) {
+      dragging = true;
+      try { trackEl.setPointerCapture(ev.pointerId); } catch (e) {}
+      opts.set(ratioOf(ev));
+      ev.preventDefault();
+    });
+    trackEl.addEventListener('pointermove', function (ev) {
+      if (dragging) opts.set(ratioOf(ev));
+    });
+    function end(ev) {
+      if (!dragging) return;
+      dragging = false;
+      try { trackEl.releasePointerCapture(ev.pointerId); } catch (e) {}
+      if (opts.done) opts.done();
+    }
+    trackEl.addEventListener('pointerup', end);
+    trackEl.addEventListener('pointercancel', end);
+    trackEl.addEventListener('keydown', function (ev) {
+      var step = ev.shiftKey ? 0.1 : 0.02;
+      var now = opts.get ? opts.get() : 0;
+      var next;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') next = now + step;
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') next = now - step;
+      else if (ev.key === 'Home') next = 0;
+      else if (ev.key === 'End') next = 1;
+      else return;
+      ev.preventDefault();
+      opts.set(clamp01(next));
+      if (opts.done) opts.done();
+    });
+  }
+
+  function start() {
+    if (!el || !el.paused) return;
+    el.volume = 0;
+    var p = el.play();
+    if (!p || !p.then) { fadeTo(targetVol(), FADE_IN); paint(); return; }
+    p.then(function () {
+      failStreak = 0;
+      fadeTo(targetVol(), FADE_IN);
+      paint();
+    }).catch(function () {
+      arm();
+    });
+  }
+
+  function arm() {
+    if (armed) return;
+    armed = true;
+    for (var i = 0; i < GESTURES.length; i++) {
+      window.addEventListener(GESTURES[i], kick, true);
+    }
+  }
+
+  function kick(e) {
+    for (var i = 0; i < GESTURES.length; i++) {
+      window.removeEventListener(GESTURES[i], kick, true);
+    }
+    armed = false;
+    if (e && e.target && bar.contains(e.target)) return;
+    start();
+  }
+
+  function switchTo(i) {
+    var n = tracks.length;
+    idx = ((i % n) + n) % n;
+    var t = tracks[idx];
+
+    fadeTo(0, FADE_OUT, function () {
+      el.src = encodeURI('./music/' + t.file);
+      el.load();
+      el.volume = 0;
+      tickProgress();
+      paint();
+      remember();
+      var p = el.play();
+      if (!p || !p.then) { fadeTo(targetVol(), 700); paint(); return; }
+      p.then(function () { failStreak = 0; fadeTo(targetVol(), 700); paint(); })
+       .catch(function () { arm(); });
+    });
+  }
+
+  // 兼容读取：新格式 JSON，旧格式分键
+  var savedIdx = 0, wantOff = false;
+  try {
+    var raw = localStorage.getItem('yys-bgm');
+    if (raw && raw.charAt(0) === '{') {
+      var saved = JSON.parse(raw);
+      savedIdx = parseInt(saved.idx, 10) || 0;
+      wantOff = saved.off === 1 || saved.off === '1';
+      var sv = parseFloat(saved.vol);
+      if (isFinite(sv) && sv >= 0 && sv <= 1) vol = sv;
+      muted = saved.mute === 1 || saved.mute === '1';
+    } else {
+      savedIdx = parseInt(raw, 10) || 0;
+      wantOff = localStorage.getItem('yys-bgm-off') === '1';
+      var sv2 = parseFloat(localStorage.getItem('yys-bgm-vol'));
+      if (isFinite(sv2) && sv2 >= 0 && sv2 <= 1) vol = sv2;
+      muted = localStorage.getItem('yys-bgm-mute') === '1';
+    }
+  } catch (err) {}
+  idx = (savedIdx >= 0 && savedIdx < tracks.length) ? savedIdx : 0;
+
+  el = new Audio();
+  el.preload = 'auto';
+  el.volume = 0;
+  el.src = encodeURI('./music/' + tracks[idx].file);
+
+  el.addEventListener('timeupdate', tickProgress);
+  el.addEventListener('loadstart', tickProgress);
+  el.addEventListener('ended', function () { switchTo(idx + 1); });
+  el.addEventListener('play', paint);
+  el.addEventListener('pause', paint);
+  el.addEventListener('error', function () {
+    failStreak++;
+    if (failStreak >= tracks.length) {
+      bar.classList.remove('is-ready');
+      return;
+    }
+    switchTo(idx + 1);
+  });
+
+  btnPlay.addEventListener('click', function () {
+    if (el.paused) {
+      start();
+    } else {
+      fadeTo(0, 400, function () { el.pause(); paint(); remember(); });
+    }
+  });
+  btnPrev.addEventListener('click', function () { switchTo(idx - 1); });
+  btnNext.addEventListener('click', function () { switchTo(idx + 1); });
+  btnMute.addEventListener('click', function () {
+    muted = !muted;
+    fadeTo(targetVol(), 220);
+    paintVol();
+    remember();
+  });
+
+  function setCollapsed(on) {
+    document.body.classList.toggle('bgm-collapsed', !!on);
+    var target = on ? btnMini : btnMin;
+    if (target && target.focus) {
+      try { target.focus({ preventScroll: true }); } catch (err) { target.focus(); }
+    }
+  }
+  btnMin.addEventListener('click', function () { setCollapsed(true); });
+  btnMini.addEventListener('click', function () { setCollapsed(false); });
+
+  bindDrag(seekEl, {
+    set: function (r) {
+      var d = el && el.duration;
+      if (!d || !isFinite(d) || d <= 0) return;
+      el.currentTime = r * d;
+      tickProgress();
+    },
+    get: function () {
+      var d = el && el.duration;
+      return (d && isFinite(d) && d > 0) ? el.currentTime / d : 0;
+    },
+  });
+
+  bindDrag(volEl, {
+    set: function (r) {
+      clearInterval(fadeTimer);
+      vol = r;
+      if (r > 0) muted = false;
+      if (el) el.volume = targetVol();
+      paintVol();
+    },
+    get: function () { return muted ? 0 : vol; },
+    done: remember,
+  });
+
+  window.addEventListener('resize', function () { tickProgress(); paintVol(); }, { passive: true });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (!el.paused) {
+        resumeAfterHidden = true;
+        el.pause();
+        paint();
+      }
+    } else if (resumeAfterHidden) {
+      resumeAfterHidden = false;
+      start();
+    }
+  }, { passive: true });
+
+  bar.classList.add('is-ready');
+  paint();
+  tickProgress();
+
+  if (!wantOff) start();
+})();
 </script>
 </body>
 </html>

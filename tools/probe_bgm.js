@@ -99,8 +99,17 @@ const READ_STATE = `(function(){
   return {
     missing: false,
     ready: bar.classList.contains('is-ready'),
-    // 收起态：显隐完全由 <body> 上的 .bgm-min 决定，所以几个量一起读
-    collapsed: document.body.classList.contains('bgm-min'),
+    // 收起态：显隐完全由 <body> 上的 .bgm-collapsed 决定，所以几个量一起读
+    collapsed: document.body.classList.contains('bgm-collapsed'),
+    // 整页排版有没有被收起状态影响。这里量的是"在流里的内容卡"的宽度：
+    // 曾经 body 上的状态类叫 .bgm-min，和面板里收起按钮的控件类同名，
+    // 那条 .bgm-min{width:22px} 规则命中 body → 正文宽度塌成 0、整页散架，
+    // 而当时所有断言都只看播放器自己，一个都没红。加这两个量当护栏。
+    bodyWidth: Math.round(document.body.getBoundingClientRect().width),
+    contentWidth: (function () {
+      var cw = document.querySelector('.content-wrap');
+      return cw ? Math.round(cw.getBoundingClientRect().width) : null;
+    })(),
     // 面板收起不再走 display:none（那样是"闪没"），而是滑出屏幕 + visibility/opacity 归零，
     // 所以这里读"综合可见性"，探针在点击后等过渡跑完再取值
     barVisible: (function () {
@@ -116,7 +125,7 @@ const READ_STATE = `(function(){
     miniAnim: miniLbl ? getComputedStyle(miniLbl).animationName : null,
     miniSize: mr ? Math.round(mr.width) + 'x' + Math.round(mr.height) : null,
     miniEdge: mr ? Math.round(window.innerWidth - mr.right) : null,
-    miniOffCenter: mr ? Math.round((mr.top + mr.height / 2) - window.innerHeight / 2) : null,
+    miniBottom: mr ? Math.round(window.innerHeight - mr.bottom) : null,
     miniRadius: mini ? getComputedStyle(mini).borderRadius : null,
     miniLabelSize: (function () {
       if (!miniLbl) return null;
@@ -709,6 +718,12 @@ const READ_STATE = `(function(){
     playing: k1.playing, miniArt: k1.miniArt, miniUrl: k1.miniUrl }));
   check('点收起按钮后：面板隐、唱片现',
         k1.collapsed === true && k1.barVisible === false && k1.miniVisible === true);
+  // 护栏：收起只该换播放器自己的形态，不许动整页排版（见 READ_STATE 里的注释）
+  check('收起不改变整页排版（body / 内容卡宽度不变）',
+        k0.contentWidth !== null && Math.abs(k1.contentWidth - k0.contentWidth) <= 1 &&
+        Math.abs(k1.bodyWidth - k0.bodyWidth) <= 1 && k1.bodyWidth > 600,
+        'body ' + k0.bodyWidth + '→' + k1.bodyWidth +
+        '  内容卡 ' + k0.contentWidth + '→' + k1.contentWidth);
   check('收起不影响播放', k1.playing === 'true', 'data-playing=' + k1.playing);
   check('唱片中央带着当前曲目的封面（和面板上那张是同一张）',
         k1.miniArt === true && !!k1.miniUrl && !!urlBefore &&
@@ -725,11 +740,14 @@ const READ_STATE = `(function(){
   check('中央标贴铺的是当前封面（不是兜底的面具）',
         k1.miniLabelArt === 'cover', 'background-size=' + k1.miniLabelArt);
   check('唱片贴着右边缘停靠（侧边收起）',
-        k1.miniEdge !== null && k1.miniEdge >= -1 && k1.miniEdge <= 3,
+        k1.miniEdge !== null && k1.miniEdge >= 0 && k1.miniEdge <= 3,
         '距右边缘 ' + k1.miniEdge + 'px');
-  check('唱片钉在屏幕右侧的垂直中点（读作"收进侧边"而不是角上的悬浮钮）',
-        k1.miniOffCenter !== null && Math.abs(k1.miniOffCenter) <= 2,
-        '偏离垂直中点 ' + k1.miniOffCenter + 'px');
+  // 面板钉在 right:18px; bottom:18px，唱片要停回同一个角 —— 收起/展开才是
+  // "同一处的两种形态"。钉在屏幕垂直中点会让它出现在正文中间，读起来是
+  // 页面里凭空多出一个黑圆（0e2c44f 那样做过一版，现已改回）。
+  check('唱片停在与面板同一个右下角（不是屏幕右侧垂直中点）',
+        k1.miniBottom !== null && k1.miniBottom >= 14 && k1.miniBottom <= 22,
+        '距底边 ' + k1.miniBottom + 'px');
 
   // 转不转要跟着播放态走 —— 这是"收起后也能看出在不在放"的全部依据
   check('在播时唱片在转', k1.miniSpin === 'running', 'animation-play-state=' + k1.miniSpin);

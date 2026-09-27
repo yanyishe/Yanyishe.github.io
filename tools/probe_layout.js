@@ -168,13 +168,15 @@ const FIT = `(function(){
   });
   await send('Page.navigate', { url: TARGET_URL });
 
-  for (let i = 0; i < 60; i++) {
-    const ok = await evaluate('document.readyState === "complete"')
+  // 坑：about:blank 一开始就是 complete，只等 readyState 会瞬间假通过、
+  // 量到的是没导航过去的空白页（几何全 null）。改成等 #bgmBar 出现。
+  for (let i = 0; i < 80; i++) {
+    const ok = await evaluate('!!document.getElementById("bgmBar")')
       .catch(() => false);
     if (ok) break;
     await sleep(250);
   }
-  await sleep(1500);
+  await sleep(2000);
 
   const d = await evaluate(DIAG);
   const f = await evaluate(FIT);
