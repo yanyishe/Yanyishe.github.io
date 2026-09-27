@@ -1314,6 +1314,59 @@ body.quiz-mode .quiz-view { display: block; animation: quizIn 0.5s cubic-bezier(
   color: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.28);
 }
+
+/* ============================================================
+   手机端（≤620px）答题/结果页适配
+   注意：必须放在所有基础规则之后 —— 媒体查询不提升优先级，
+   同优先级下靠后的规则胜出，写在前面会被基础样式覆盖。
+   ============================================================ */
+@media (max-width: 620px) {
+  /* 收边距：桌面端外层 1.25rem + 卡片 44px 内边距，在 390px 手机上只剩 ~260px 可用宽度 */
+  .quiz-view { padding: 22px 0.7rem 132px; }
+  .quiz-container { padding: 26px 16px 30px; border-radius: 16px; }
+  .quiz-result-figure { max-width: 272px; }
+  .quiz-result-name { font-size: 1.85rem; margin-bottom: 12px; }
+  .quiz-result-desc { font-size: 0.9rem; line-height: 1.75; }
+  .quiz-result-analysis { padding: 15px 14px; font-size: 0.88rem; line-height: 1.8; }
+
+  /* 契合度行：原「名字+条+百分比+标签」四件挤一排，手机上拆成两行，
+     第一行 名字 / 定性标签，第二行 进度条 / 百分比 —— 条能真正拉开长度 */
+  .quiz-match-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-bottom: 15px;
+  }
+  .quiz-match-name {
+    order: 1;
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+  .quiz-match-tag { order: 2; margin-left: 0; font-size: 0.68rem; padding: 1px 7px; }
+  /* 基准宽 = 整行减去百分比，逼它换到第二行 */
+  .quiz-match-track { order: 3; flex: 1 1 calc(100% - 46px); min-width: 0; height: 7px; }
+  .quiz-match-pct {
+    order: 4;
+    width: auto;
+    min-width: 38px;
+    text-align: right;
+    font-size: 0.8rem;
+  }
+
+  /* 四维条：收一点 */
+  .quiz-trait-row { gap: 10px; margin-bottom: 13px; }
+  .quiz-trait-name { width: 52px; font-size: 0.8rem; }
+
+  /* 结果页按钮 */
+  .quiz-result-actions { gap: 10px; margin-top: 22px; }
+  .quiz-retry-btn, .quiz-card-btn { padding: 11px 22px; font-size: 0.9rem; }
+
+  /* 页脚：给底部固定的播放器条让位，避免被盖住 */
+  .site-footer { margin-bottom: 0; padding-bottom: 100px; }
+}
 </style>
 </head>
 <body class="layout-top">
