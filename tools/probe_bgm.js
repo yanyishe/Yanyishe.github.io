@@ -126,6 +126,7 @@ const READ_STATE = `(function(){
     miniSize: mr ? Math.round(mr.width) + 'x' + Math.round(mr.height) : null,
     miniEdge: mr ? Math.round(window.innerWidth - mr.right) : null,
     miniBottom: mr ? Math.round(window.innerHeight - mr.bottom) : null,
+    vh: window.innerHeight,
     miniRadius: mini ? getComputedStyle(mini).borderRadius : null,
     miniLabelSize: (function () {
       if (!miniLbl) return null;
@@ -742,12 +743,12 @@ const READ_STATE = `(function(){
   check('唱片贴着右边缘停靠（侧边收起）',
         k1.miniEdge !== null && k1.miniEdge >= 0 && k1.miniEdge <= 3,
         '距右边缘 ' + k1.miniEdge + 'px');
-  // 面板钉在 right:18px; bottom:18px，唱片要停回同一个角 —— 收起/展开才是
-  // "同一处的两种形态"。钉在屏幕垂直中点会让它出现在正文中间，读起来是
-  // 页面里凭空多出一个黑圆（0e2c44f 那样做过一版，现已改回）。
-  check('唱片停在与面板同一个右下角（不是屏幕右侧垂直中点）',
-        k1.miniBottom !== null && k1.miniBottom >= 14 && k1.miniBottom <= 22,
-        '距底边 ' + k1.miniBottom + 'px');
+  // 侧边收起：唱片停靠在屏幕右侧垂直中点（而不是右下角浮着）。
+  // 这样收起态一眼就是「收到侧边」，而且贴着右缘不挡正文。
+  check('唱片在屏幕右侧垂直中点停靠（侧边收起，不是右下角浮着）',
+        k1.miniBottom !== null && k1.vh &&
+        Math.abs(k1.miniBottom - (k1.vh / 2 - 38)) <= 40,
+        '距底边 ' + k1.miniBottom + 'px / 视口高 ' + k1.vh + '（期望≈' + Math.round(k1.vh / 2 - 38) + '）');
 
   // 转不转要跟着播放态走 —— 这是"收起后也能看出在不在放"的全部依据
   check('在播时唱片在转', k1.miniSpin === 'running', 'animation-play-state=' + k1.miniSpin);

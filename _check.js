@@ -748,7 +748,9 @@
   // 状态只挂在 <body> 的类上（CSS 据此切换谁显示），JS 不另存一份布尔值 ——
   // 两份状态迟早会走失。刻意不写 localStorage：需求是"每次进站都是展开的"。
   function setCollapsed(on) {
-    document.body.classList.toggle('bgm-min', !!on);
+    // 类名不能叫 .bgm-min：那是面板里收起按钮的控件类，会让 `.bgm-min{width:22px}`
+    // 命中 <body>，整页宽度塌掉（详细注释见 index.html 里同一段）
+    document.body.classList.toggle('bgm-collapsed', !!on);
     // 焦点跟着一起搬，否则用键盘的人收起之后焦点会掉到 body 上
     var target = on ? btnMini : btnMin;
     if (target && target.focus) {

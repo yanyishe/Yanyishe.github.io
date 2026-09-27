@@ -532,7 +532,7 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 .bgm-bar:focus-within { color: var(--bgm-ink-hi); border-color: var(--bgm-edge-hi); }
 
 .bgm-mini {
-  position: fixed; right: 0; bottom: 18px; z-index: 401;
+  position: fixed; right: 0; top: 50%; margin-top: -38px; z-index: 401;
   display: none;
   width: 76px; height: 76px;
   padding: 0;
@@ -765,7 +765,7 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   .bgm-btn-main { width: 32px; height: 32px; }
   .bgm-btn { width: 30px; height: 30px; }
   .bgm-time { font-size: 11px; }
-  .bgm-mini { bottom: 22px; right: 0; }
+  .bgm-mini { top: auto; bottom: 22px; right: 0; }
 }
 
 @media (max-width: 1320px) {
@@ -1495,6 +1495,361 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
 })();
 
 // ==================== 答题逻辑 ====================
+
+// ==================== 背景音乐 ====================
+(function () {
+  'use strict';
+
+  var bar = document.getElementById('bgmBar');
+  if (!bar) return;
+  var titleEl   = document.getElementById('bgmTitle');
+  var coverEl   = document.getElementById('bgmCover');
+  var btnMin    = document.getElementById('bgmMin');
+  var btnMini   = document.getElementById('bgmMini');
+  var miniLabel = document.getElementById('bgmMiniLabel');
+  var countEl   = document.getElementById('bgmCount');
+  var timeEl    = document.getElementById('bgmTime');
+  var fillEl    = document.getElementById('bgmFill');
+  var knobEl    = document.getElementById('bgmKnob');
+  var seekEl    = document.getElementById('bgmSeek');
+  var btnPrev   = document.getElementById('bgmPrev');
+  var btnPlay   = document.getElementById('bgmPlay');
+  var btnNext   = document.getElementById('bgmNext');
+  var btnMute   = document.getElementById('bgmMute');
+  var volEl     = document.getElementById('bgmVol');
+  var volFillEl = document.getElementById('bgmVolFill');
+  var volKnobEl = document.getElementById('bgmVolKnob');
+
+  var VOL_DEFAULT = 0.4;
+  var FADE_IN  = 1400;
+  var FADE_OUT = 320;
+
+  var tracks = (window.YYS_TRACKS || []).filter(function (t) {
+    return t && typeof t.file === 'string' && t.file;
+  });
+  if (!tracks.length) return;
+
+  var el = null;
+  var idx = 0;
+  var fadeTimer = 0;
+  var armed = false;
+  var resumeAfterHidden = false;
+  var failStreak = 0;
+  var vol = VOL_DEFAULT;
+  var muted = false;
+
+  function targetVol() { return muted ? 0 : vol; }
+
+  var GESTURES = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchend'];
+
+  function fadeTo(to, ms, done) {
+    clearInterval(fadeTimer);
+    if (!el) { if (done) done(); return; }
+    var from = el.volume;
+    var steps = Math.max(1, Math.round(ms / 40));
+    var i = 0;
+    fadeTimer = setInterval(function () {
+      i++;
+      el.volume = Math.max(0, Math.min(1, from + (to - from) * (i / steps)));
+      if (i >= steps) {
+        clearInterval(fadeTimer);
+        el.volume = to;
+        if (done) done();
+      }
+    }, 40);
+  }
+
+  function paintArt(el, url) {
+    if (!el) return;
+    if (url) {
+      el.style.backgroundImage = 'url("' + encodeURI(url) + '")';
+      el.classList.add('is-art');
+    } else {
+      el.style.backgroundImage = '';
+      el.classList.remove('is-art');
+    }
+  }
+  function setCover(url) {
+    paintArt(coverEl, url);
+    paintArt(miniLabel, url);
+  }
+
+  function paint() {
+    var t = tracks[idx];
+    if (titleEl) titleEl.textContent = t.title || t.file;
+    if (countEl) countEl.textContent = pad2(idx + 1) + ' / ' + pad2(tracks.length);
+    setCover(t.cover);
+    if (btnMini) {
+      var mn = '展开播放器：' + (t.title || t.file);
+      btnMini.setAttribute('aria-label', mn);
+      btnMini.setAttribute('title', mn);
+    }
+    var playing = !!el && !el.paused;
+    btnPlay.setAttribute('data-playing', playing ? 'true' : 'false');
+    bar.setAttribute('data-playing', playing ? 'true' : 'false');
+    if (btnMini) btnMini.setAttribute('data-playing', playing ? 'true' : 'false');
+    var label = playing ? '暂停' : '播放';
+    btnPlay.setAttribute('aria-label', label);
+    btnPlay.setAttribute('title', label);
+    paintVol();
+    tickTime();
+  }
+
+  // 合并存储：一次 setItem 替代原来四次
+  function remember() {
+    try {
+      localStorage.setItem('yys-bgm', JSON.stringify({
+        idx: idx,
+        off: (el && el.paused) ? 1 : 0,
+        vol: vol.toFixed(2),
+        mute: muted ? 1 : 0,
+      }));
+    } catch (err) {}
+  }
+
+  function tickProgress() {
+    if (!el) return;
+    var d = el.duration;
+    var r = (d && isFinite(d) && d > 0) ? (el.currentTime / d) : 0;
+    paintTrack(fillEl && fillEl.parentNode, fillEl, knobEl, r);
+    if (seekEl) seekEl.setAttribute('aria-valuenow', Math.round(clamp01(r) * 100));
+    tickTime();
+  }
+
+  function clamp01(v) { return v > 1 ? 1 : v < 0 ? 0 : (isFinite(v) ? v : 0); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function fmt(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    s = Math.floor(s);
+    return Math.floor(s / 60) + ':' + pad2(s % 60);
+  }
+
+  function paintTrack(rail, fill, knob, r) {
+    r = clamp01(r);
+    if (fill) fill.style.transform = 'scaleX(' + r.toFixed(4) + ')';
+    if (knob && rail) knob.style.transform = 'translateX(' + (r * rail.clientWidth).toFixed(1) + 'px)';
+    return r;
+  }
+
+  function paintVol() {
+    var rail = volFillEl && volFillEl.parentNode;
+    var r = paintTrack(rail, volFillEl, volKnobEl, muted ? 0 : vol);
+    if (btnMute) {
+      btnMute.setAttribute('data-muted', muted ? 'true' : 'false');
+      var l = muted ? '取消静音' : '静音';
+      btnMute.setAttribute('aria-label', l);
+      btnMute.setAttribute('title', l);
+    }
+    if (volEl) volEl.setAttribute('aria-valuenow', Math.round(r * 100));
+  }
+
+  function tickTime() {
+    if (!timeEl || !el) return;
+    timeEl.textContent = fmt(el.currentTime) + ' / ' + fmt(el.duration);
+  }
+
+  function bindDrag(trackEl, opts) {
+    if (!trackEl) return;
+    var dragging = false;
+    function ratioOf(ev) {
+      var r = trackEl.getBoundingClientRect();
+      if (!r.width) return 0;
+      return clamp01((ev.clientX - r.left) / r.width);
+    }
+    trackEl.addEventListener('pointerdown', function (ev) {
+      dragging = true;
+      try { trackEl.setPointerCapture(ev.pointerId); } catch (e) {}
+      opts.set(ratioOf(ev));
+      ev.preventDefault();
+    });
+    trackEl.addEventListener('pointermove', function (ev) {
+      if (dragging) opts.set(ratioOf(ev));
+    });
+    function end(ev) {
+      if (!dragging) return;
+      dragging = false;
+      try { trackEl.releasePointerCapture(ev.pointerId); } catch (e) {}
+      if (opts.done) opts.done();
+    }
+    trackEl.addEventListener('pointerup', end);
+    trackEl.addEventListener('pointercancel', end);
+    trackEl.addEventListener('keydown', function (ev) {
+      var step = ev.shiftKey ? 0.1 : 0.02;
+      var now = opts.get ? opts.get() : 0;
+      var next;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowUp') next = now + step;
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowDown') next = now - step;
+      else if (ev.key === 'Home') next = 0;
+      else if (ev.key === 'End') next = 1;
+      else return;
+      ev.preventDefault();
+      opts.set(clamp01(next));
+      if (opts.done) opts.done();
+    });
+  }
+
+  function start() {
+    if (!el || !el.paused) return;
+    el.volume = 0;
+    var p = el.play();
+    if (!p || !p.then) { fadeTo(targetVol(), FADE_IN); paint(); return; }
+    p.then(function () {
+      failStreak = 0;
+      fadeTo(targetVol(), FADE_IN);
+      paint();
+    }).catch(function () {
+      arm();
+    });
+  }
+
+  function arm() {
+    if (armed) return;
+    armed = true;
+    for (var i = 0; i < GESTURES.length; i++) {
+      window.addEventListener(GESTURES[i], kick, true);
+    }
+  }
+
+  function kick(e) {
+    for (var i = 0; i < GESTURES.length; i++) {
+      window.removeEventListener(GESTURES[i], kick, true);
+    }
+    armed = false;
+    if (e && e.target && bar.contains(e.target)) return;
+    start();
+  }
+
+  function switchTo(i) {
+    var n = tracks.length;
+    idx = ((i % n) + n) % n;
+    var t = tracks[idx];
+
+    fadeTo(0, FADE_OUT, function () {
+      el.src = encodeURI('./music/' + t.file);
+      el.load();
+      el.volume = 0;
+      tickProgress();
+      paint();
+      remember();
+      var p = el.play();
+      if (!p || !p.then) { fadeTo(targetVol(), 700); paint(); return; }
+      p.then(function () { failStreak = 0; fadeTo(targetVol(), 700); paint(); })
+       .catch(function () { arm(); });
+    });
+  }
+
+  // 兼容读取：新格式 JSON，旧格式分键
+  var savedIdx = 0, wantOff = false;
+  try {
+    var raw = localStorage.getItem('yys-bgm');
+    if (raw && raw.charAt(0) === '{') {
+      var saved = JSON.parse(raw);
+      savedIdx = parseInt(saved.idx, 10) || 0;
+      wantOff = saved.off === 1 || saved.off === '1';
+      var sv = parseFloat(saved.vol);
+      if (isFinite(sv) && sv >= 0 && sv <= 1) vol = sv;
+      muted = saved.mute === 1 || saved.mute === '1';
+    } else {
+      savedIdx = parseInt(raw, 10) || 0;
+      wantOff = localStorage.getItem('yys-bgm-off') === '1';
+      var sv2 = parseFloat(localStorage.getItem('yys-bgm-vol'));
+      if (isFinite(sv2) && sv2 >= 0 && sv2 <= 1) vol = sv2;
+      muted = localStorage.getItem('yys-bgm-mute') === '1';
+    }
+  } catch (err) {}
+  idx = (savedIdx >= 0 && savedIdx < tracks.length) ? savedIdx : 0;
+
+  el = new Audio();
+  el.preload = 'auto';
+  el.volume = 0;
+  el.src = encodeURI('./music/' + tracks[idx].file);
+
+  el.addEventListener('timeupdate', tickProgress);
+  el.addEventListener('loadstart', tickProgress);
+  el.addEventListener('ended', function () { switchTo(idx + 1); });
+  el.addEventListener('play', paint);
+  el.addEventListener('pause', paint);
+  el.addEventListener('error', function () {
+    failStreak++;
+    if (failStreak >= tracks.length) {
+      bar.classList.remove('is-ready');
+      return;
+    }
+    switchTo(idx + 1);
+  });
+
+  btnPlay.addEventListener('click', function () {
+    if (el.paused) {
+      start();
+    } else {
+      fadeTo(0, 400, function () { el.pause(); paint(); remember(); });
+    }
+  });
+  btnPrev.addEventListener('click', function () { switchTo(idx - 1); });
+  btnNext.addEventListener('click', function () { switchTo(idx + 1); });
+  btnMute.addEventListener('click', function () {
+    muted = !muted;
+    fadeTo(targetVol(), 220);
+    paintVol();
+    remember();
+  });
+
+  function setCollapsed(on) {
+    document.body.classList.toggle('bgm-collapsed', !!on);
+    var target = on ? btnMini : btnMin;
+    if (target && target.focus) {
+      try { target.focus({ preventScroll: true }); } catch (err) { target.focus(); }
+    }
+  }
+  btnMin.addEventListener('click', function () { setCollapsed(true); });
+  btnMini.addEventListener('click', function () { setCollapsed(false); });
+
+  bindDrag(seekEl, {
+    set: function (r) {
+      var d = el && el.duration;
+      if (!d || !isFinite(d) || d <= 0) return;
+      el.currentTime = r * d;
+      tickProgress();
+    },
+    get: function () {
+      var d = el && el.duration;
+      return (d && isFinite(d) && d > 0) ? el.currentTime / d : 0;
+    },
+  });
+
+  bindDrag(volEl, {
+    set: function (r) {
+      clearInterval(fadeTimer);
+      vol = r;
+      if (r > 0) muted = false;
+      if (el) el.volume = targetVol();
+      paintVol();
+    },
+    get: function () { return muted ? 0 : vol; },
+    done: remember,
+  });
+
+  window.addEventListener('resize', function () { tickProgress(); paintVol(); }, { passive: true });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (!el.paused) {
+        resumeAfterHidden = true;
+        el.pause();
+        paint();
+      }
+    } else if (resumeAfterHidden) {
+      resumeAfterHidden = false;
+      start();
+    }
+  }, { passive: true });
+
+  bar.classList.add('is-ready');
+  paint();
+  tickProgress();
+
+  if (!wantOff) start();
+})();
 </script>
 </body>
 </html>

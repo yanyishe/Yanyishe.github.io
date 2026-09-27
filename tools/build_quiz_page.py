@@ -20,9 +20,18 @@ QUIZ = os.path.join(ROOT, 'quiz.html')
 
 # ---- 锚点 ----
 CSS_BEGIN = '/* ========== 答题界面样式 ========== */'
-CSS_END = '/* ========== 背景音乐播放器 ========== */'
+# 这个文件被来回改过，注释标记有两种写法，两个都认（谁是先把谁当结尾）
+CSS_END_CANDS = [
+    '/* ========== 背景音乐播放器 ========== */',
+    '/* ---- 背景音乐播放器 ----',
+]
+CSS_END = None
 HTML_BEGIN = '<!-- ========== 答题界面（隐藏状态） ========== -->'
-HTML_END = '<!-- 背景音乐播放器 -->'
+HTML_END_CANDS = [
+    '<!-- 背景音乐播放器 -->',
+    '<!-- 背景音乐播放器：曲目清单为空时整条不出现，所以页面上不会留空壳 -->',
+]
+HTML_END = None
 JS_BEGIN_MARK = '  // 你提供的 8 个角色数据'
 START_CLICK_MARK = '点击“签订契约”进入答题'
 SCRIPT_END = '</script>'
@@ -150,6 +159,9 @@ def main():
     raw = io.open(INDEX, encoding='utf-8').read()
     lines = raw.split('\n')
 
+    globals()['CSS_END'] = next(c for c in CSS_END_CANDS if c in raw)
+    globals()['HTML_END'] = next(c for c in HTML_END_CANDS if c in raw)
+
     if 'quiz-overlay' not in raw:
         print('index.html 里已经没有答题浮层了 —— 说明已经拆过，停止以免重复处理。')
         return
@@ -184,7 +196,9 @@ def main():
 
     # --- 5. 写出 quiz.html ---
     out = TEMPLATE % {
-        'style': style_public.strip('\n'),
+        # 公共样式 + 答题专属样式都要带上：少了后者，卡片就没有深色底、
+        # 选项也不是那套按钮（从「窗口」改成整页时最容易漏这一步）
+        'style': (style_public.strip('\n') + '\n\n' + quiz_css.strip('\n')),
         'quiz_html': quiz_html,
         'bgm_html': bgm_html,
         'quiz_js': quiz_js,
@@ -193,10 +207,11 @@ def main():
     io.open(QUIZ, 'w', encoding='utf-8', newline='\n').write(out)
     print('已生成 %s  (%.1f KB)' % (os.path.basename(QUIZ), os.path.getsize(QUIZ) / 1024))
 
-    # --- 6. 首页瘦身：删掉答题 CSS / 浮层 / 答题 JS，按钮改成链接 ---
+    # --- 6. 首页瘦身：删掉答题 CSS / 浮层 / 答题 IIFE，按钮改成链接 ---
     keep = lines[:]
-    # JS 段（倒序删除免得位移）
-    del keep[js_iife:js_end]
+    # 只删答题那一个 IIFE —— 背景音乐的 IIFE 在同一个 <script> 里、排在它后面，
+    # 删到 </script> 会把播放器逻辑一起带走（主页就没 BGM 了）。
+    del keep[js_iife:js_iife + (bgm_split - 1)]
     del keep[h0:h1]                     # 浮层 HTML
     # CSS 段
     css0 = next(i for i, l in enumerate(keep) if CSS_BEGIN in l)
