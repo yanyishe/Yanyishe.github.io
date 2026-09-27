@@ -815,6 +815,124 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   .bgm-mini { animation: none; }
   .tarot-wrap::after { display: none; }
 }
+/* ========== 答题界面样式 ========== */
+.quiz-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(26, 24, 34, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+.quiz-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.quiz-container {
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #1a1822;
+  border: 1px solid rgba(214, 166, 74, 0.4);
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
+  color: #f6ebd2;
+  transform: translateY(20px) scale(0.95);
+  transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.quiz-overlay.active .quiz-container {
+  transform: translateY(0) scale(1);
+}
+.quiz-progress {
+  width: 100%;
+  height: 4px;
+  background: rgba(240, 228, 202, 0.16);
+  border-radius: 2px;
+  margin-bottom: 30px;
+  overflow: hidden;
+}
+.quiz-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: #c9a24a;
+  transition: width 0.4s ease;
+}
+.quiz-index {
+  font-size: 0.85rem;
+  color: #c9a24a;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+.quiz-question {
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-bottom: 24px;
+  color: #f6ebd2;
+}
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.quiz-option {
+  display: block;
+  width: 100%;
+  padding: 14px 18px;
+  background: rgba(240, 228, 202, 0.06);
+  border: 1px solid rgba(240, 228, 202, 0.16);
+  border-radius: 12px;
+  color: #f6ebd2;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.quiz-option:hover {
+  background: rgba(201, 162, 74, 0.15);
+  border-color: #c9a24a;
+  transform: translateX(4px);
+}
+.quiz-result-tag {
+  font-size: 0.85rem;
+  color: #c9a24a;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+.quiz-result-name {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #e63946;
+  margin-bottom: 16px;
+}
+.quiz-result-desc {
+  font-size: 0.95rem;
+  color: #8a8496;
+  line-height: 1.8;
+}
+.quiz-restart-btn {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 10px 24px;
+  background: #c9a24a;
+  color: #1a1822;
+  border: none;
+  border-radius: 30px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+.quiz-restart-btn:hover {
+  background: #dcb75f;
+  transform: translateY(-2px);
+}
 </style>
 </head>
 <body class="layout-top">
@@ -1018,7 +1136,7 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
       </p>
 
       <!-- 底部按钮：天鹅绒房间风格的“签订契约” -->
-      <a class="explore-badge" id="startQuizBtn" href="./quiz.html">
+      <a class="explore-badge" id="startQuizBtn" href="#">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
         </svg>
@@ -1028,6 +1146,33 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
     </section>
 
   </main>
+</div>
+
+<!-- ========== 答题界面（隐藏状态） ========== -->
+<div class="quiz-overlay" id="quizOverlay">
+  <div class="quiz-container" id="quizContainer">
+    
+    <!-- 题目进度 -->
+    <div class="quiz-progress">
+      <div class="quiz-progress-bar" id="quizProgressBar"></div>
+    </div>
+    
+    <!-- 题目区域 -->
+    <div class="quiz-question-area" id="quizQuestionArea">
+      <div class="quiz-index" id="quizIndex">Q1 / 24</div>
+      <h2 class="quiz-question" id="quizQuestionText">加载中...</h2>
+      <div class="quiz-options" id="quizOptions"></div>
+    </div>
+
+    <!-- 结果区域 -->
+    <div class="quiz-result-area" id="quizResultArea" style="display: none;">
+      <div class="quiz-result-tag">你的灵魂契合者</div>
+      <h2 class="quiz-result-name" id="quizResultName">——</h2>
+      <p class="quiz-result-desc" id="quizResultDesc"></p>
+      <button class="quiz-restart-btn" id="quizRestartBtn">重新签订</button>
+    </div>
+
+  </div>
 </div>
 
 <!-- 背景音乐播放器 -->
@@ -1495,6 +1640,218 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
 })();
 
 // ==================== 答题逻辑 ====================
+
+(function () {
+  'use strict';
+
+  // 你提供的 8 个角色数据
+  var characters = [
+    { name: "鸣上悠", en: "YU NARUKAMI", desc: "《女神异闻录4》男主角。沉稳冷静，拥有强烈的正义感与领导力，是特别搜查队的核心。" },
+    { name: "天野舞耶", en: "MAYA AMANO", desc: "《女神异闻录2 罚》女主角。坚强独立，在逆境中依然勇往直前，用乐观感染身边的人。" },
+    { name: "周防达哉", en: "TATSUYA SUOU", desc: "《女神异闻录2 罪》男主角。重情重义，为了守护重要的人可以牺牲一切，背负着沉重的命运。" },
+    { name: "藤堂尚也", en: "NAOYA TOUDOU", desc: "《女神异闻录1》男主角。温和善良，在命运的洪流中寻找自己的道路，重视伙伴与羁绊。" },
+    { name: "结城理", en: "MAKOTO YUKI", desc: "《女神异闻录3》男主角。外表冷淡，内心却充满了对生命意义的探寻，愿意为了他人献出一切。" },
+    { name: "汐见琴音", en: "KOTONE SHIOMI", desc: "《女神异闻录3》女主角。乐观开朗，用笑容面对命运的残酷，是团队中温暖的太阳。" },
+    { name: "雨宫莲", en: "REN AMAMIYA", desc: "《女神异闻录5》男主角。反抗不公，用怪盗的方式改变扭曲的世界，在黑暗中寻找真正的正义。" },
+    { name: "上城渚", en: "NAGISA KAMISHIRO", desc: "《女神异闻录5 X》男主角。充满好奇心与行动力，在全新的舞台中寻找真相，不断突破自我。" }
+  ];
+
+  // 24 道题，每道题的选项会给特定角色加分
+  var questions = [
+    { q: "周末的午后，你更倾向于怎样度过？", options: [
+      { text: "和朋友一起外出，享受热闹的街道", scores: { "鸣上悠": 2, "雨宫莲": 1, "上城渚": 1 } },
+      { text: "一个人待在家里，看书或打游戏", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "当你目睹不公正的事情发生时，你的第一反应是？", options: [
+      { text: "立刻站出来，正面阻止对方", scores: { "周防达哉": 2, "雨宫莲": 2, "天野舞耶": 1 } },
+      { text: "先观察情况，用更巧妙的方式解决", scores: { "鸣上悠": 1, "藤堂尚也": 2, "上城渚": 1, "结城理": 1 } }
+    ]},
+    { q: "面对不可避免的离别，你会选择？", options: [
+      { text: "把回忆珍藏在心里，带着祝福继续前行", scores: { "汐见琴音": 2, "天野舞耶": 1, "上城渚": 1 } },
+      { text: "用自己的方式反抗命运，哪怕过程艰辛", scores: { "结城理": 2, "周防达哉": 2, "鸣上悠": 1 } }
+    ]},
+    { q: "你更认同哪种“面具”下的自我？", options: [
+      { text: "冷静而理性，在暗处观察并掌控全局", scores: { "藤堂尚也": 2, "结城理": 1, "鸣上悠": 1 } },
+      { text: "热情而感性，为了心中所想奋不顾身", scores: { "雨宫莲": 2, "天野舞耶": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "当朋友遇到困难向你求助时，你会？", options: [
+      { text: "毫不犹豫地伸出援手，哪怕自己会受牵连", scores: { "周防达哉": 2, "雨宫莲": 2, "汐见琴音": 1 } },
+      { text: "先帮对方分析局势，寻找最优解", scores: { "鸣上悠": 2, "藤堂尚也": 1, "结城理": 1 } }
+    ]},
+    { q: "你如何看待“规则”与“秩序”？", options: [
+      { text: "规则是用来保护大家的，应当遵守", scores: { "藤堂尚也": 2, "鸣上悠": 1, "汐见琴音": 1 } },
+      { text: "不合理的规则就应该被打破", scores: { "雨宫莲": 2, "周防达哉": 2, "天野舞耶": 1 } }
+    ]},
+    { q: "在团队中，你通常扮演什么角色？", options: [
+      { text: "领导者，负责统筹全局", scores: { "鸣上悠": 2, "周防达哉": 1, "雨宫莲": 1 } },
+      { text: "倾听者，默默支持大家", scores: { "藤堂尚也": 2, "结城理": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "面对失败和挫折，你的态度是？", options: [
+      { text: "总结经验，下次一定要赢回来", scores: { "雨宫莲": 2, "上城渚": 2, "天野舞耶": 1 } },
+      { text: "接受现实，从中寻找新的意义", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } }
+    ]},
+    { q: "你更喜欢哪种类型的音乐？", options: [
+      { text: "节奏感强、充满活力的流行乐", scores: { "汐见琴音": 2, "上城渚": 2, "天野舞耶": 1 } },
+      { text: "深沉、安静，能引发思考的曲子", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } }
+    ]},
+    { q: "如果拥有一种超能力，你希望是？", options: [
+      { text: "读心术，能看透他人的真实想法", scores: { "藤堂尚也": 2, "鸣上悠": 1, "上城渚": 1 } },
+      { text: "时间暂停，能拥有属于自己的瞬间", scores: { "结城理": 2, "周防达哉": 1, "雨宫莲": 1 } }
+    ]},
+    { q: "你如何看待“命运”？", options: [
+      { text: "命运是注定的，但我们可以选择如何面对", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } },
+      { text: "命运掌握在自己手中，绝不认输", scores: { "雨宫莲": 2, "周防达哉": 2, "天野舞耶": 1 } }
+    ]},
+    { q: "在一场重要的考试或比赛前，你会？", options: [
+      { text: "充分准备，把能做的都做到最好", scores: { "鸣上悠": 2, "藤堂尚也": 1, "上城渚": 1 } },
+      { text: "顺其自然，相信临场发挥", scores: { "天野舞耶": 2, "汐见琴音": 1, "周防达哉": 1 } }
+    ]},
+    { q: "你更喜欢什么样的朋友？", options: [
+      { text: "真诚坦率，有话直说", scores: { "周防达哉": 2, "雨宫莲": 1, "天野舞耶": 1 } },
+      { text: "温柔体贴，懂得倾听", scores: { "藤堂尚也": 2, "汐见琴音": 1, "结城理": 1 } }
+    ]},
+    { q: "当你感到迷茫时，你会？", options: [
+      { text: "找朋友聊聊，从他们那里获得力量", scores: { "汐见琴音": 2, "上城渚": 1, "天野舞耶": 1 } },
+      { text: "独自思考，直到找到答案", scores: { "结城理": 2, "鸣上悠": 1, "藤堂尚也": 1 } }
+    ]},
+    { q: "你如何看待“牺牲”这个词？", options: [
+      { text: "为了保护重要的人，牺牲是值得的", scores: { "结城理": 2, "周防达哉": 2, "鸣上悠": 1 } },
+      { text: "生命只有一次，应该好好珍惜", scores: { "汐见琴音": 2, "天野舞耶": 1, "上城渚": 1 } }
+    ]},
+    { q: "在陌生的环境里，你通常？", options: [
+      { text: "主动出击，快速结交新朋友", scores: { "上城渚": 2, "汐见琴音": 2, "天野舞耶": 1 } },
+      { text: "先观察，找到合适的机会再融入", scores: { "鸣上悠": 1, "结城理": 1, "藤堂尚也": 1 } }
+    ]},
+    { q: "你更倾向于相信？", options: [
+      { text: "眼见为实，证据和逻辑最重要", scores: { "鸣上悠": 2, "藤堂尚也": 1, "结城理": 1 } },
+      { text: "直觉和内心的感受", scores: { "天野舞耶": 1, "汐见琴音": 1, "上城渚": 2 } }
+    ]},
+    { q: "如果明天就是世界末日，你会？", options: [
+      { text: "和最重要的人在一起，平静度过", scores: { "结城理": 2, "汐见琴音": 1, "藤堂尚也": 1 } },
+      { text: "做一直想做但没敢做的事", scores: { "雨宫莲": 2, "周防达哉": 1, "上城渚": 1 } }
+    ]},
+    { q: "你如何看待“谎言”？", options: [
+      { text: "善意的谎言有时是必要的", scores: { "鸣上悠": 1, "天野舞耶": 1, "藤堂尚也": 1 } },
+      { text: "真相即使再残酷，也比谎言好", scores: { "周防达哉": 2, "结城理": 1, "雨宫莲": 1 } }
+    ]},
+    { q: "你觉得自己更像哪种动物？", options: [
+      { text: "狼，独立且忠诚于自己的族群", scores: { "周防达哉": 2, "雨宫莲": 1, "结城理": 1 } },
+      { text: "海豚，聪明且善于社交", scores: { "汐见琴音": 2, "上城渚": 2, "天野舞耶": 1 } }
+    ]},
+    { q: "面对别人的误解，你会？", options: [
+      { text: "努力解释，直到对方明白", scores: { "天野舞耶": 1, "汐见琴音": 1, "上城渚": 1 } },
+      { text: "清者自清，懒得解释", scores: { "结城理": 2, "周防达哉": 1, "藤堂尚也": 1 } }
+    ]},
+    { q: "你更喜欢哪种电影？", options: [
+      { text: "热血的动作片，充满激情", scores: { "雨宫莲": 2, "周防达哉": 1, "上城渚": 1 } },
+      { text: "发人深省的文艺片", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } }
+    ]},
+    { q: "在友情中，你最看重什么？", options: [
+      { text: "信任，一旦破碎就无法挽回", scores: { "周防达哉": 2, "鸣上悠": 1, "雨宫莲": 1 } },
+      { text: "陪伴，无论何时都在身边", scores: { "汐见琴音": 2, "藤堂尚也": 1, "天野舞耶": 1 } }
+    ]},
+    { q: "如果可以选择，你希望自己的“面具”是什么颜色？", options: [
+      { text: "蓝色，冷静、深邃，像大海一样", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } },
+      { text: "红色，热情、燃烧，像火焰一样", scores: { "雨宫莲": 2, "周防达哉": 1, "天野舞耶": 1 } }
+    ]}
+  ];
+
+  var currentIndex = 0;
+  var scores = {};
+
+  var overlay = document.getElementById('quizOverlay');
+  var btn = document.getElementById('startQuizBtn');
+  var indexEl = document.getElementById('quizIndex');
+  var qTextEl = document.getElementById('quizQuestionText');
+  var optsEl = document.getElementById('quizOptions');
+  var progressBar = document.getElementById('quizProgressBar');
+  var questionArea = document.getElementById('quizQuestionArea');
+  var resultArea = document.getElementById('quizResultArea');
+  var resultName = document.getElementById('quizResultName');
+  var resultDesc = document.getElementById('quizResultDesc');
+  var restartBtn = document.getElementById('quizRestartBtn');
+
+  // 首页浮层版：点「签订契约」打开答题，点遮罩空白处关掉（下方已有遮罩关闭）。
+  // 和主页同一个文档 —— 没有页面跳转，BGM 一直播，不会被切页打断。
+  btn.addEventListener('click', function (e) {
+    e.preventDefault();
+    overlay.classList.add('active');
+    resetQuiz();
+  });
+
+  // 重置并开始答题
+  function resetQuiz() {
+    currentIndex = 0;
+    scores = {};
+    characters.forEach(function (c) { scores[c.name] = 0; });
+    resultArea.style.display = 'none';
+    questionArea.style.display = 'block';
+    showQuestion();
+  }
+
+  // 显示当前题目
+  function showQuestion() {
+    var q = questions[currentIndex];
+    indexEl.textContent = 'Q' + (currentIndex + 1) + ' / ' + questions.length;
+    qTextEl.textContent = q.q;
+    progressBar.style.width = ((currentIndex) / questions.length * 100) + '%';
+    optsEl.innerHTML = '';
+
+    q.options.forEach(function (opt) {
+      var btn = document.createElement('button');
+      btn.className = 'quiz-option';
+      btn.textContent = opt.text;
+      btn.addEventListener('click', function () {
+        // 加分
+        for (var key in opt.scores) {
+          if (scores[key] !== undefined) scores[key] += opt.scores[key];
+        }
+        currentIndex++;
+        if (currentIndex < questions.length) {
+          showQuestion();
+        } else {
+          showResult();
+        }
+      });
+      optsEl.appendChild(btn);
+    });
+  }
+
+  // 显示结果
+  function showResult() {
+    progressBar.style.width = '100%';
+    questionArea.style.display = 'none';
+    resultArea.style.display = 'block';
+
+    // 找出最高分（如果平局，随机选择一个）
+    var maxScore = -1;
+    var topChars = [];
+    characters.forEach(function (c) {
+      if (scores[c.name] > maxScore) {
+        maxScore = scores[c.name];
+        topChars = [c];
+      } else if (scores[c.name] === maxScore) {
+        topChars.push(c);
+      }
+    });
+    var topChar = topChars[Math.floor(Math.random() * topChars.length)];
+
+    resultName.textContent = topChar.name + ' / ' + topChar.en;
+    resultDesc.textContent = topChar.desc;
+  }
+
+  // 重新开始
+  restartBtn.addEventListener('click', function () {
+    resetQuiz();
+  });
+
+  // 点击遮罩关闭（可选）
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) {
+      overlay.classList.remove('active');
+    }
+  });
+})();
 
 // ==================== 背景音乐 ====================
 (function () {
