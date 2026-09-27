@@ -18,6 +18,14 @@ images/*.png
 !images/favicon.png
 !images/favicon-180.png
 
+# 人物立绘：PNG 是"白底+彩圆+文字"的合成宣传原图，只用于生成 cut/ 的透明圆徽章，
+# 页面运行时只读 images/persona/cut/*.webp 与 cut-data.js。故母图与旧版备份不入库。
+images/persona/*.png
+images/persona/cut_bak/
+
+# 本地会话数据（非页面资源）
+.workbuddy/
+
 # 验证与排版过程中产出的截图、临时页面、浏览器配置目录
 preview/
 _*.html

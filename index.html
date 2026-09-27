@@ -134,6 +134,15 @@ body {
   transition: transform 0.8s cubic-bezier(0.34, 1.18, 0.5, 1);
 }
 
+/* 背景牌入场过渡：仅动 opacity，避开翻牌(.tarot-card transform)与浮动 RAF(每帧覆盖 .tarot-wrap transform)。
+   动画必须挂在 .tarot-wrap 上、绝不能挂 .tarot-card：带 preserve-3d 的元素一旦被
+   opacity 动画填充（both/backwards 填充期），会被强制拍扁渲染，backface-visibility 失效，
+   翻牌后永远显示背面。to 帧省略 = 动画结束自然回落到各层自身 opacity（0.30/0.55/0.58）。 */
+@keyframes cardEnter {
+  from { opacity: 0; }
+}
+.tarot-wrap { animation: cardEnter 0.6s ease backwards; }
+
 .tarot-wrap.flipped .tarot-card {
   transform: translate3d(0, -22px, 40px) rotate(var(--rot, 0deg)) rotateY(180deg);
 }
@@ -174,9 +183,9 @@ body {
   background-position: center;
 }
 
-.tarot-wrap[data-layer="back"]  { opacity: 0.35; --s: 0.60; --k: 1.25; }
-.tarot-wrap[data-layer="mid"]   { opacity: 0.66; --s: 0.78; --k: 0; }
-.tarot-wrap[data-layer="front"] { opacity: 0.68; --s: 1;    --k: 0; }
+.tarot-wrap[data-layer="back"]  { opacity: 0.30; --s: 0.60; --k: 1.25; }
+.tarot-wrap[data-layer="mid"]   { opacity: 0.55; --s: 0.78; --k: 0; }
+.tarot-wrap[data-layer="front"] { opacity: 0.58; --s: 1.0;  --k: 0; }
 
 .tarot-wrap[data-layer="back"] .tarot-face {
   box-shadow: 0 3px 8px -3px rgba(40,30,80,0.16);
@@ -266,6 +275,13 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
   justify-content: center;
   padding: 3rem 1.5rem;
   pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.content-wrap.is-leaving { opacity: 0; }
+.content-wrap.fade-in { animation: wrapIn 0.45s ease both; }
+@keyframes wrapIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .main-container {
@@ -437,6 +453,33 @@ body.layout-scrolled .tw-21 { --t: 86.0%; --r: var(--rx); --s: 0.57; --k: 1.25; 
 .quote-mark:hover {
   transform: scaleX(-1) translateY(-6px) rotate(-6deg);
   color: rgba(230,57,70,0.45);
+}
+
+/* —— 站点页脚：同人声明 / 反馈建议 / 版权 —— */
+.site-footer {
+  margin: 2.75rem auto 1rem;
+  padding: 1.75rem 1rem 0;
+  max-width: 760px;
+  text-align: center;
+  color: rgba(26, 26, 31, 0.46);
+  font-size: 0.78rem;
+  line-height: 2;
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+.site-footer p { margin: 0; }
+.site-footer .site-footer-note { color: rgba(26, 26, 31, 0.38); }
+.site-footer a {
+  color: rgba(26, 26, 31, 0.62);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(230, 57, 70, 0.35);
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+.site-footer a:hover { color: #e63946; border-bottom-color: #e63946; }
+.site-footer-brand {
+  margin-top: 0.5rem !important;
+  color: rgba(26, 26, 31, 0.34);
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
 }
 .explore-badge {
   position: relative;
@@ -800,7 +843,7 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tarot-wrap { transition: none; }
+  .tarot-wrap { transition: none; animation: none; }
   .tarot-wrap::after, .tarot-face, .tarot-card,
   .step-card, .step-card::before, .step-number, .step-card h3,
   .explore-badge, .explore-badge::before, .explore-badge svg,
@@ -814,45 +857,78 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   .bgm-mini-label { animation: none; }
   .bgm-mini { animation: none; }
   .tarot-wrap::after { display: none; }
+  .quiz-result-area.show .quiz-result-deco,
+  .quiz-result-area.show .quiz-result-figure,
+  .quiz-result-area.show .quiz-result-tag,
+  .quiz-result-area.show .quiz-result-name,
+  .quiz-result-area.show .quiz-result-desc,
+  .quiz-result-area.show .quiz-result-analysis,
+  .quiz-result-area.show .quiz-result-traits,
+  .quiz-result-area.show .quiz-result-chart,
+  .quiz-result-area.show .quiz-result-match,
+  .quiz-result-area.show .quiz-result-actions { animation: none; }
+  .quiz-match-fill { transition: none; }
+  .quiz-radar-g { transition: none; transform: none; opacity: 1; }
 }
 /* ========== 答题界面样式 ========== */
-.quiz-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(26, 24, 34, 0.55);
-  display: flex;
+/* 答题视图：替换中间内容块，塔罗背景原样保留 */
+body.quiz-mode .content-wrap { display: none; }
+body.quiz-mode .site-footer { display: none; }
+.quiz-view {
+  display: none;
+  position: relative;
+  z-index: 350;
+  min-height: calc(100vh - var(--banner-h, 38vh)); /* 至少占 banner 以下一屏，内容/滚动超出时自然延伸 */
+  padding: 44px 1.25rem 120px;
+  box-sizing: border-box;
+  overflow: visible;
+  transition: opacity 0.35s ease;
+  pointer-events: none; /* 整层放行：答题时点击空白处可透到背景塔罗牌翻牌 */
+}
+body.quiz-mode { min-height: var(--layer-h); } /* 答题页可滚动：露出 200vh 背景层里分布的塔罗牌 */
+body.quiz-mode .quiz-view { display: block; animation: quizIn 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.quiz-view.is-leaving { opacity: 0; animation: none; }
+@keyframes quizIn {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.quiz-back {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
-}
-.quiz-overlay.active {
-  opacity: 1;
+  gap: 6px;
+  margin: 0 auto 26px;
+  color: #8a7f6a;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
   pointer-events: auto;
+  transition: color 0.25s ease;
 }
+.quiz-back:hover { color: #c9a24a; }
 .quiz-container {
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-  background: #1a1822;
-  border: 1px solid rgba(214, 166, 74, 0.4);
+  width: 100%;
+  max-width: 660px;
+  margin: 0 auto;
+  transition: max-width 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(214, 166, 74, 0.35);
   border-radius: 20px;
-  padding: 40px;
-  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
-  color: #f6ebd2;
-  transform: translateY(20px) scale(0.95);
-  transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+  padding: 48px 44px;
+  box-shadow: 0 30px 60px -28px rgba(40, 30, 60, 0.35);
+  color: #2a2433;
+  pointer-events: auto; /* quiz-view 放行点击后，答题卡自己要接住事件 */
 }
-.quiz-overlay.active .quiz-container {
-  transform: translateY(0) scale(1);
-}
+/* 结果页：白色窗口拓宽，给人物卡和内容更多呼吸空间 */
+.quiz-container.result-mode { max-width: 820px; }
 .quiz-progress {
   width: 100%;
   height: 4px;
-  background: rgba(240, 228, 202, 0.16);
+  background: rgba(42, 36, 51, 0.1);
   border-radius: 2px;
   margin-bottom: 30px;
   overflow: hidden;
@@ -870,68 +946,373 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   margin-bottom: 12px;
 }
 .quiz-question {
-  font-size: 1.3rem;
+  font-size: 1.45rem;
   font-weight: 600;
-  line-height: 1.5;
-  margin-bottom: 24px;
-  color: #f6ebd2;
+  line-height: 1.55;
+  margin-bottom: 28px;
+  color: #2a2433;
 }
 .quiz-options {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .quiz-option {
   display: block;
   width: 100%;
-  padding: 14px 18px;
-  background: rgba(240, 228, 202, 0.06);
-  border: 1px solid rgba(240, 228, 202, 0.16);
+  padding: 18px 22px;
+  min-height: 56px;
+  background: rgba(42, 36, 51, 0.04);
+  border: 1px solid rgba(42, 36, 51, 0.12);
   border-radius: 12px;
-  color: #f6ebd2;
-  font-size: 0.95rem;
+  color: #2a2433;
+  font-size: 1.02rem;
+  line-height: 1.5;
   text-align: left;
   cursor: pointer;
   transition: all 0.25s ease;
 }
 .quiz-option:hover {
-  background: rgba(201, 162, 74, 0.15);
+  background: rgba(201, 162, 74, 0.12);
   border-color: #c9a24a;
   transform: translateX(4px);
 }
+.quiz-nav {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 26px;
+}
+.quiz-prev-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: transparent;
+  border: 1px solid rgba(42, 36, 51, 0.2);
+  border-radius: 30px;
+  color: #6a6076;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+.quiz-prev-btn:hover:not(:disabled) {
+  border-color: #c9a24a;
+  color: #c9a24a;
+}
+.quiz-prev-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .quiz-result-tag {
   font-size: 0.85rem;
-  color: #c9a24a;
+  color: var(--accent, #c9a24a);
   letter-spacing: 0.1em;
   margin-bottom: 10px;
 }
 .quiz-result-name {
-  font-size: 2rem;
+  font-size: 2.3rem;
   font-weight: 700;
-  color: #e63946;
+  color: var(--accent, #e63946);
   margin-bottom: 16px;
 }
 .quiz-result-desc {
   font-size: 0.95rem;
-  color: #8a8496;
+  color: #5a5466;
   line-height: 1.8;
 }
-.quiz-restart-btn {
-  display: inline-block;
+/* —— 结果页装饰：金色分隔符 —— */
+.quiz-result-deco {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--accent, #c9a24a);
+  font-size: 0.8rem;
+  margin-bottom: 20px;
+}
+.quiz-result-deco::before,
+.quiz-result-deco::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+.quiz-result-deco::before { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent, #c9a24a) 60%, transparent)); }
+.quiz-result-deco::after  { background: linear-gradient(90deg, color-mix(in srgb, var(--accent, #c9a24a) 60%, transparent), transparent); }
+/* —— 人物立绘：圆形徽章抠图（大圆 + 人物），光晕衬底，投影随透明边缘 —— */
+.quiz-result-figure {
+  position: relative;
+  max-width: 430px;
+  margin: 0 auto 0;
+}
+.quiz-result-figure::before {
+  content: "";
+  position: absolute;
+  inset: -16% -12%;
+  z-index: 0;
+  background: radial-gradient(closest-side, var(--halo, var(--accent, #c9a24a)), transparent 72%);
+  opacity: 0.34;
+  filter: blur(14px);
+  pointer-events: none;
+}
+.quiz-result-card {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  filter: drop-shadow(0 26px 34px rgba(60, 45, 20, 0.2));
+}
+/* —— 契合度 TOP3 比例条 —— */
+.quiz-result-match {
   margin-top: 24px;
-  padding: 10px 24px;
-  background: #c9a24a;
-  color: #1a1822;
+  padding-top: 18px;
+  border-top: 1px dashed color-mix(in srgb, var(--accent, #c9a24a) 45%, transparent);
+  text-align: left;
+}
+.quiz-result-match-title {
+  font-size: 0.8rem;
+  color: var(--accent, #c9a24a);
+  letter-spacing: 0.12em;
+  margin-bottom: 14px;
+}
+.quiz-match-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.quiz-match-row:last-child { margin-bottom: 0; }
+.quiz-match-name {
+  flex: none;
+  width: 72px;
+  text-align: right;
+  font-size: 0.85rem;
+  color: #5a5466;
+}
+.quiz-match-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(42, 36, 51, 0.08);
+  overflow: hidden;
+}
+.quiz-match-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent, #c9a24a) 55%, #fff), var(--accent, #c9a24a));
+  transition: width 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.quiz-match-pct {
+  flex: none;
+  width: 46px;
+  font-size: 0.8rem;
+  color: #8a7f6a;
+  font-variant-numeric: tabular-nums;
+}
+.quiz-match-row.top .quiz-match-name { color: var(--accent, #e63946); font-weight: 600; }
+.quiz-match-row.top .quiz-match-pct { color: var(--accent, #e63946); font-weight: 600; }
+.quiz-match-row.top .quiz-match-fill { background: linear-gradient(90deg, var(--accent, #e63946), color-mix(in srgb, var(--accent, #e63946) 72%, #fff)); }
+/* —— 人格评测长文 —— */
+.quiz-result-analysis {
+  margin: 22px 0 4px;
+  padding: 18px 20px;
+  text-align: left;
+  background: color-mix(in srgb, var(--accent, #c9a24a) 6%, #ffffff);
+  border-left: 3px solid var(--accent, #c9a24a);
+  border-radius: 0 12px 12px 0;
+  font-size: 0.92rem;
+  line-height: 1.85;
+  color: #4a4452;
+}
+/* —— 小节标题（特质解析 / 全员分布共用）—— */
+.quiz-result-sub {
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--accent, #c9a24a);
+  margin-bottom: 14px;
+}
+/* —— 灵魂特质解析（四维数值条）—— */
+.quiz-result-traits {
+  margin-top: 24px;
+  text-align: left;
+}
+.quiz-trait-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+.quiz-trait-row:last-child { margin-bottom: 0; }
+.quiz-trait-name {
+  flex: none;
+  width: 60px;
+  font-size: 0.82rem;
+  color: #5a5466;
+}
+.quiz-trait-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(42, 36, 51, 0.08);
+  overflow: hidden;
+}
+.quiz-trait-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent, #c9a24a) 55%, #fff), var(--accent, #c9a24a));
+  transition: width 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.quiz-trait-pct {
+  flex: none;
+  width: 40px;
+  font-size: 0.78rem;
+  color: #8a7f6a;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* —— 雷达图（四维灵魂特质）—— */
+.quiz-radar { display: block; width: min(260px, 72%); height: auto; margin: 4px auto 18px; overflow: visible; }
+.quiz-radar-grid { fill: none; stroke: color-mix(in srgb, var(--accent, #c9a24a) 22%, transparent); stroke-width: 1; }
+.quiz-radar-axis { stroke: color-mix(in srgb, var(--accent, #c9a24a) 30%, transparent); stroke-width: 1; }
+.quiz-radar-label { fill: var(--accent, #c9a24a); font-size: 12px; font-weight: 600; }
+.quiz-radar-g { transform-origin: 130px 130px; transform: scale(0.55); opacity: 0; transition: transform .8s cubic-bezier(.22,.61,.36,1), opacity .6s ease; }
+.quiz-radar-g.in { transform: scale(1); opacity: 1; }
+.quiz-radar-poly { fill: color-mix(in srgb, var(--accent, #c9a24a) 20%, transparent); stroke: var(--accent, #c9a24a); stroke-width: 2; stroke-linejoin: round; }
+.quiz-radar-dot { fill: var(--accent, #c9a24a); stroke: #fff; stroke-width: 1.5; }
+/* —— 逐维文字解读 —— */
+.quiz-dim-comments { text-align: left; }
+.quiz-dim-line { padding: 10px 0; border-bottom: 1px dashed color-mix(in srgb, var(--accent, #c9a24a) 28%, transparent); }
+.quiz-dim-line:last-child { border-bottom: none; }
+.quiz-dim-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.quiz-dim-head b { font-size: 0.95rem; color: #3a3442; font-weight: 600; }
+.quiz-dim-val { font-size: 1.05rem; font-weight: 700; color: var(--accent, #c9a24a); font-variant-numeric: tabular-nums; }
+.quiz-dim-word { font-size: 0.72rem; color: #8a7f6a; border: 1px solid color-mix(in srgb, var(--accent, #c9a24a) 40%, transparent); border-radius: 20px; padding: 0 8px; }
+.quiz-dim-line p { margin: 2px 0 0; font-size: 0.86rem; line-height: 1.7; color: #5a5466; }
+/* —— 契合度定性标签 —— */
+.quiz-match-tag { flex: none; margin-left: 10px; font-size: 0.7rem; color: var(--accent, #c9a24a); background: color-mix(in srgb, var(--accent, #c9a24a) 10%, #fff); border-radius: 20px; padding: 1px 8px; white-space: nowrap; }
+/* —— 全员契合度分布图 —— */
+.quiz-result-chart {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px dashed color-mix(in srgb, var(--accent, #c9a24a) 45%, transparent);
+  text-align: left;
+}
+/* —— 结果浮现动画（错峰淡入上滑）—— */
+@keyframes resultIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.quiz-result-area.show .quiz-result-deco   { animation: resultIn 0.5s ease both; }
+.quiz-result-area.show .quiz-result-figure { animation: resultIn 0.65s cubic-bezier(0.22, 0.61, 0.36, 1) 0.08s both; }
+.quiz-result-area.show .quiz-result-tag    { animation: resultIn 0.5s ease 0.2s both; }
+.quiz-result-area.show .quiz-result-name   { animation: resultIn 0.55s ease 0.28s both; }
+.quiz-result-area.show .quiz-result-desc   { animation: resultIn 0.55s ease 0.36s both; }
+.quiz-result-area.show .quiz-result-analysis { animation: resultIn 0.55s ease 0.44s both; }
+.quiz-result-area.show .quiz-result-traits { animation: resultIn 0.55s ease 0.5s both; }
+.quiz-result-area.show .quiz-result-match  { animation: resultIn 0.55s ease 0.56s both; }
+.quiz-result-area.show .quiz-result-chart  { animation: resultIn 0.55s ease 0.62s both; }
+.quiz-result-area.show .quiz-result-actions { animation: resultIn 0.55s ease 0.68s both; }
+/* —— 结果页底部按钮组：再测一次 + 生成角色卡 —— */
+.quiz-result-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 28px;
+}
+.quiz-retry-btn {
+  padding: 12px 30px;
+  background: #fff;
+  border: 1px solid rgba(42, 36, 51, 0.22);
+  border-radius: 30px;
+  color: #4a4452;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+}
+.quiz-retry-btn:hover {
+  border-color: var(--accent, #c9a24a);
+  color: var(--accent, #c9a24a);
+  transform: translateY(-2px);
+}
+.quiz-card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 30px;
+  background: var(--accent, #c9a24a);
+  color: #fff;
   border: none;
+  border-radius: 30px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+.quiz-card-btn:hover {
+  background: color-mix(in srgb, var(--accent, #c9a24a) 84%, #000);
+  transform: translateY(-2px);
+}
+.quiz-card-btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+.quiz-card-btn .btn-arrow { font-size: 1em; line-height: 1; }
+/* —— 角色形象卡预览弹窗 —— */
+.card-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 16, 28, 0.66);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.card-modal.open { display: flex; }
+.card-modal-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: min(92vw, 400px);
+  max-height: 94vh;
+}
+.card-modal-box img {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  border-radius: 14px;
+  box-shadow: 0 34px 70px -24px rgba(0, 0, 0, 0.6);
+}
+.card-modal-tip {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+}
+.card-modal-actions { display: flex; gap: 12px; }
+.card-modal-actions button {
+  padding: 10px 26px;
   border-radius: 30px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.3s ease, transform 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
-.quiz-restart-btn:hover {
-  background: #dcb75f;
-  transform: translateY(-2px);
+.card-modal-actions button:hover { transform: translateY(-2px); }
+.card-modal-save {
+  background: var(--accent, #c9a24a);
+  color: #fff;
+  border: none;
+}
+.card-modal-close {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.28);
 }
 </style>
 </head>
@@ -946,139 +1327,6 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
 </header>
 
 <div class="tarot-layer" id="tarotLayer">
-
-  <div class="tarot-wrap tw-0" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="7" data-front="./images/tarot-00.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-1" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="7" data-front="./images/tarot-01.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-2" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="4" data-front="./images/tarot-02.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-3" data-layer="front" data-depth="0.9" data-float="1.6" data-rotate="-5" data-front="./images/tarot-03.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-4" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="3" data-front="./images/tarot-04.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-5" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-4" data-front="./images/tarot-05.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-6" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="-3" data-front="./images/tarot-06.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-7" data-layer="mid" data-depth="0.6" data-float="1.2" data-rotate="4" data-front="./images/tarot-07.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-8" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="-3" data-front="./images/tarot-08.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-9" data-layer="mid" data-depth="0.55" data-float="1.0" data-rotate="3" data-front="./images/tarot-09.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-10" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="5" data-front="./images/tarot-10.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-11" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-5" data-front="./images/tarot-11.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-12" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-2" data-front="./images/tarot-12.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-13" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="2" data-front="./images/tarot-13.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-14" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="3" data-front="./images/tarot-14.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-15" data-layer="back" data-depth="0.3" data-float="0.6" data-rotate="-4" data-front="./images/tarot-15.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-16" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-10" data-front="./images/tarot-16.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-17" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="8" data-front="./images/tarot-17.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-18" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="4" data-front="./images/tarot-18.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-19" data-layer="back" data-depth="0.28" data-float="0.6" data-rotate="-6" data-front="./images/tarot-19.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-20" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="10" data-front="./images/tarot-20.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
-  <div class="tarot-wrap tw-21" data-layer="back" data-depth="0.25" data-float="0.5" data-rotate="-9" data-front="./images/tarot-21.webp">
-    <div class="tarot-card">
-      <div class="tarot-face tarot-back"></div>
-      <div class="tarot-face tarot-front"></div>
-    </div>
-  </div>
 
 </div>
 
@@ -1107,18 +1355,18 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
     <div class="steps-grid">
       <div class="step-card">
         <div class="step-number">01</div>
-        <h3>跟着直觉选</h3>
+        <h3>跟着你的直觉选</h3>
         <p>没有标准答案，选择更像你的那一个</p>
       </div>
       <div class="step-card">
         <div class="step-number">02</div>
-        <h3>遇见你的角色</h3>
-        <p>24 道选择，找到与你最相像的 TA</p>
+        <h3>遇见你的羁绊</h3>
+        <p>24 道题目，找到与你最相像的 TA</p>
       </div>
       <div class="step-card">
         <div class="step-number">03</div>
-        <h3>留下一张角色卡</h3>
-        <p>看见你们相似的地方，也带走专属结果</p>
+        <h3>留下一张自己的角色卡</h3>
+        <p>看见你们相似的地方。</p>
       </div>
     </div>
 
@@ -1148,8 +1396,16 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   </main>
 </div>
 
-<!-- ========== 答题界面（隐藏状态） ========== -->
-<div class="quiz-overlay" id="quizOverlay">
+<!-- ========== 页脚：同人声明 / 反馈建议 / 版权 ========== -->
+<footer class="site-footer">
+  <p>本测试为粉丝创作，仅供娱乐。所有角色、立绘及相关商标版权归 ATLUS / SEGA 所有。</p>
+  <p>反馈建议：<a href="mailto:468779873@qq.com">468779873@qq.com</a></p>
+  <p class="site-footer-brand">© 2026 女神异闻录 · 人物人格测试</p>
+</footer>
+
+<!-- ========== 答题界面：替换主内容，塔罗背景保留 ========== -->
+<div class="quiz-view" id="quizView">
+  <button class="quiz-back" id="quizBackBtn" type="button">← 返回主页</button>
   <div class="quiz-container" id="quizContainer">
     
     <!-- 题目进度 -->
@@ -1162,16 +1418,51 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
       <div class="quiz-index" id="quizIndex">Q1 / 24</div>
       <h2 class="quiz-question" id="quizQuestionText">加载中...</h2>
       <div class="quiz-options" id="quizOptions"></div>
+      <div class="quiz-nav">
+        <button class="quiz-prev-btn" id="quizPrevBtn" type="button">← 上一题</button>
+      </div>
     </div>
 
     <!-- 结果区域 -->
     <div class="quiz-result-area" id="quizResultArea" style="display: none;">
+      <div class="quiz-result-deco" aria-hidden="true">✦</div>
+      <figure class="quiz-result-figure">
+        <img class="quiz-result-card" id="quizResultImg" alt="" loading="lazy" decoding="async">
+      </figure>
       <div class="quiz-result-tag">你的灵魂契合者</div>
       <h2 class="quiz-result-name" id="quizResultName">——</h2>
       <p class="quiz-result-desc" id="quizResultDesc"></p>
-      <button class="quiz-restart-btn" id="quizRestartBtn">重新签订</button>
+      <div class="quiz-result-analysis" id="quizResultAnalysis"></div>
+      <div class="quiz-result-traits" id="quizResultTraits">
+        <div class="quiz-result-sub">灵魂特质解析</div>
+        <div id="quizTraitBars"></div>
+      </div>
+      <div class="quiz-result-match" id="quizResultMatch">
+        <div class="quiz-result-match-title">灵魂契合度 TOP 3</div>
+        <div id="quizMatchBars"></div>
+      </div>
+      <div class="quiz-result-chart">
+        <div class="quiz-result-sub">全员契合度分布</div>
+        <div id="quizChartBars"></div>
+      </div>
+      <div class="quiz-result-actions">
+        <button class="quiz-retry-btn" id="quizRestartBtn" type="button">再测一次</button>
+        <button class="quiz-card-btn" id="quizGenCardBtn" type="button">生成我的角色卡 <span class="btn-arrow">↘</span></button>
+      </div>
     </div>
 
+  </div>
+</div>
+
+<!-- 角色形象卡预览弹窗 -->
+<div class="card-modal" id="cardModal" role="dialog" aria-modal="true" aria-label="角色形象卡预览">
+  <div class="card-modal-box">
+    <img id="cardModalImg" alt="我的角色形象卡">
+    <div class="card-modal-tip">长按或点「保存图片」留下这张卡</div>
+    <div class="card-modal-actions">
+      <button class="card-modal-save" id="cardModalSave" type="button">保存图片</button>
+      <button class="card-modal-close" id="cardModalClose" type="button">关闭</button>
+    </div>
   </div>
 </div>
 
@@ -1257,6 +1548,64 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
     </svg>
   </span>
 </button>
+
+<script>
+/* 背景塔罗牌动态生成：数量只改下面的 CARD_COUNT（≤ 图片数）。
+   改变数量后刷新页面，新牌会带 cardEnter 入场过渡动画错峰浮现。 */
+(function () {
+  'use strict';
+  var layer = document.getElementById('tarotLayer');
+  if (!layer) return;
+
+  var CARD_COUNT = 22; // 对应图片 tarot-00.webp … tarot-21.webp
+  var DEFS = [
+    { layer: 'front', depth: 0.90, float: 1.6, rotate: 7 },
+    { layer: 'front', depth: 0.90, float: 1.6, rotate: 7 },
+    { layer: 'front', depth: 0.90, float: 1.6, rotate: 4 },
+    { layer: 'front', depth: 0.90, float: 1.6, rotate: -5 },
+    { layer: 'mid',   depth: 0.60, float: 1.2, rotate: 3 },
+    { layer: 'mid',   depth: 0.60, float: 1.2, rotate: -4 },
+    { layer: 'mid',   depth: 0.60, float: 1.2, rotate: -3 },
+    { layer: 'mid',   depth: 0.60, float: 1.2, rotate: 4 },
+    { layer: 'mid',   depth: 0.55, float: 1.0, rotate: -3 },
+    { layer: 'mid',   depth: 0.55, float: 1.0, rotate: 3 },
+    { layer: 'back',  depth: 0.30, float: 0.6, rotate: 5 },
+    { layer: 'back',  depth: 0.30, float: 0.6, rotate: -5 },
+    { layer: 'back',  depth: 0.25, float: 0.5, rotate: -2 },
+    { layer: 'back',  depth: 0.25, float: 0.5, rotate: 2 },
+    { layer: 'back',  depth: 0.30, float: 0.6, rotate: 3 },
+    { layer: 'back',  depth: 0.30, float: 0.6, rotate: -4 },
+    { layer: 'back',  depth: 0.25, float: 0.5, rotate: -10 },
+    { layer: 'back',  depth: 0.25, float: 0.5, rotate: 8 },
+    { layer: 'back',  depth: 0.28, float: 0.6, rotate: 4 },
+    { layer: 'back',  depth: 0.28, float: 0.6, rotate: -6 },
+    { layer: 'back',  depth: 0.25, float: 0.5, rotate: 10 },
+    { layer: 'back',  depth: 0.25, float: 0.5, rotate: -9 }
+  ];
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+  var frag = document.createDocumentFragment();
+  var n = Math.min(CARD_COUNT, DEFS.length);
+  for (var i = 0; i < n; i++) {
+    var d = DEFS[i];
+    var wrap = document.createElement('div');
+    wrap.className = 'tarot-wrap tw-' + i;
+    wrap.setAttribute('data-layer', d.layer);
+    wrap.setAttribute('data-depth', d.depth);
+    wrap.setAttribute('data-float', d.float);
+    wrap.setAttribute('data-rotate', d.rotate);
+    wrap.setAttribute('data-front', './images/tarot-' + pad(i) + '.webp');
+    wrap.innerHTML = '<div class="tarot-card">'
+      + '<div class="tarot-face tarot-back"></div>'
+      + '<div class="tarot-face tarot-front"></div>'
+      + '</div>';
+    wrap.style.animationDelay = (i * 0.04) + 's';
+    frag.appendChild(wrap);
+  }
+  layer.appendChild(frag);
+})();
+</script>
 
 <script src="./music/manifest.js"></script>
 
@@ -1496,12 +1845,19 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
 
   function syncLayerHeight() {
     var cwEl = document.querySelector('.content-wrap');
+    var qvEl = document.querySelector('.quiz-view');
     var h = 0;
     if (banner) h = Math.max(h, banner.offsetTop + banner.offsetHeight);
-    if (cwEl)   h = Math.max(h, cwEl.offsetTop + cwEl.offsetHeight);
+    if (document.body.classList.contains('quiz-mode') && qvEl) {
+      // 答题模式：背景层撑满 200vh，让塔罗牌分布在一整段可滚动区域里
+      h = Math.max(h, qvEl.offsetTop + qvEl.offsetHeight, window.innerHeight * 2);
+    } else if (cwEl) {
+      h = Math.max(h, cwEl.offsetTop + cwEl.offsetHeight);
+    }
     h = Math.max(h, window.innerHeight);
     document.documentElement.style.setProperty('--layer-h', h + 'px');
   }
+  window.syncLayerHeight = syncLayerHeight; // 供答题脚本进出答题模式时调用
   syncLayerHeight();
   window.addEventListener('load', syncLayerHeight, { passive: true });
   window.addEventListener('resize', syncLayerHeight, { passive: true });
@@ -1645,146 +2001,318 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
   'use strict';
 
   // 你提供的 8 个角色数据
+  // profile 为四维画像 [内敛, 亲和, 领袖, 叛逆]（0-100），用于和用户维度向量做最近邻匹配
   var characters = [
-    { name: "鸣上悠", en: "YU NARUKAMI", desc: "《女神异闻录4》男主角。沉稳冷静，拥有强烈的正义感与领导力，是特别搜查队的核心。" },
-    { name: "天野舞耶", en: "MAYA AMANO", desc: "《女神异闻录2 罚》女主角。坚强独立，在逆境中依然勇往直前，用乐观感染身边的人。" },
-    { name: "周防达哉", en: "TATSUYA SUOU", desc: "《女神异闻录2 罪》男主角。重情重义，为了守护重要的人可以牺牲一切，背负着沉重的命运。" },
-    { name: "藤堂尚也", en: "NAOYA TOUDOU", desc: "《女神异闻录1》男主角。温和善良，在命运的洪流中寻找自己的道路，重视伙伴与羁绊。" },
-    { name: "结城理", en: "MAKOTO YUKI", desc: "《女神异闻录3》男主角。外表冷淡，内心却充满了对生命意义的探寻，愿意为了他人献出一切。" },
-    { name: "汐见琴音", en: "KOTONE SHIOMI", desc: "《女神异闻录3》女主角。乐观开朗，用笑容面对命运的残酷，是团队中温暖的太阳。" },
-    { name: "雨宫莲", en: "REN AMAMIYA", desc: "《女神异闻录5》男主角。反抗不公，用怪盗的方式改变扭曲的世界，在黑暗中寻找真正的正义。" },
-    { name: "上城渚", en: "NAGISA KAMISHIRO", desc: "《女神异闻录5 X》男主角。充满好奇心与行动力，在全新的舞台中寻找真相，不断突破自我。" }
+    {
+      name: "鸣上悠", en: "YU NARUKAMI", img: "./images/persona/cut/01-yu-narukami.webp",
+      theme: "#9c7c22", halo: "#f2e3a4",
+      desc: "《女神异闻录4》男主角。从都市转学到乡下的稻羽镇，成为「特别搜查队」队长，与伙伴一同在迷雾中追查真相。",
+      analysis: "你的作答轨迹和他很像：不抢着表态，但该出手时不含糊。比起站在最前面喊口号，你更习惯先把该做的事一件件做完。他能在稻田里镇住全场靠的就是这种稳，你也有。",
+      profile: [18, 26, 46, 10]
+    },
+    {
+      name: "天野舞耶", en: "MAYA AMANO", img: "./images/persona/cut/02-maya-amano.webp",
+      theme: "#ab454c", halo: "#c96e6e",
+      desc: "《女神异闻录2 罚》女主角。身为青少年杂志《Coolest》的记者，她追查「谣言成真」的怪象，凭着一股乐观劲儿，把走散的同伴重新聚拢。",
+      analysis: "哪怕结局已经被写好，她还是继续往前走。你在压力大的时候情绪不会先垮、脚步也不会停，这点和她很像。你的乐观不是没心没肺，是自己扛出来的。",
+      profile: [26, 48, 14, 12]
+    },
+    {
+      name: "周防达哉", en: "TATSUYA SUOU", img: "./images/persona/cut/03-tatsuya-suou.webp",
+      theme: "#a83228", halo: "#b7392e",
+      desc: "《女神异闻录2 罪》男主角。临海都市珠闲瑠市、七姐妹学园里独来独往的高三生，因为一通「小丑游戏」的传闻被卷入事件，和伙伴一起追查那段被称为「罪」的过去。",
+      analysis: "他话不多，但做的事比谁都诚实。你的选择里「守护」排在「表达」前面——重要的人需要的时候，你会先上前再说。你们都是把承诺放在心里而不是嘴上的人。",
+      profile: [16, 12, 40, 32]
+    },
+    {
+      name: "藤堂尚也", en: "NAOYA TOUDOU", img: "./images/persona/cut/04-naoya-toudou.webp",
+      theme: "#8a5fb0", halo: "#c6a3d3",
+      desc: "《女神异闻录1》主人公。圣白貂学园的学生，因一场「降灵游戏」觉醒人格面具，与同伴卷入 SEBEC 的阴谋，闯进与现实重叠的异世界，一路追问被邪神 Nyarlathotep 操纵的真相。",
+      analysis: "比起赢了没有，你更在意和谁一起。他靠对伙伴的信任在命运的洪流里找到了自己的路，你的作答里也有这种温和的坚持：不争第一，但不抛下任何人。",
+      profile: [50, 14, 24, 12]
+    },
+    {
+      name: "结城理", en: "MAKOTO YUKI", img: "./images/persona/cut/05-makoto-yuki.webp",
+      theme: "#4f6da3", halo: "#b9c7e4",
+      desc: "《女神异闻录3》男主角。转学生，加入「特别课外活动部」，在被称为「影时间」的间隙里战斗，最终选择用自己的方式，为同伴留下一个明天。",
+      analysis: "他看着淡漠，其实一直在想活着是为了什么。你在意义感和利他选项上的高分和他同频：不是冷漠，是想清楚了再投入。一旦认定值得，你们都舍得押上全部。",
+      profile: [42, 32, 14, 12]
+    },
+    {
+      name: "汐见琴音", en: "KOTONE SHIOMI", img: "./images/persona/cut/06-kotone-shiomi.webp",
+      theme: "#cf6b88", halo: "#eec5cf",
+      desc: "《女神异闻录3》女主角（便携版）。转学进入月光馆学园的少女，性格活泼外放，总能把社团的气氛带得热热闹闹。",
+      analysis: "命运对她不算客气，她还是先照亮别人。你的乐观一直很稳定——不是没受过伤，是决定不让伤痛说了算。你和她一样，是会把周围气氛撑起来的那种人。",
+      profile: [14, 42, 16, 28]
+    },
+    {
+      name: "雨宫莲", en: "REN AMAMIYA", img: "./images/persona/cut/07-ren-amamiya.webp",
+      theme: "#cc3d3d", halo: "#d94f4f",
+      desc: "《女神异闻录5》男主角。代号 Joker 的少年，因蒙冤被送往东京借住，靠着手机里的「异世界导航」拉起一支怪盗团，专向欲望扭曲的大人发起「改心」。",
+      analysis: "规则压不弯你，但你也讲策略，这正是他的做法：不服从是为了纠正，不是为了破坏。你的叛逆和他高度吻合，都是笑着把规矩掀了的那种人。",
+      profile: [18, 10, 22, 50]
+    },
+    {
+      name: "上城渚", en: "NAGISA KAMISHIRO", img: "./images/persona/cut/08-nagisa-kamisiro.webp",
+      theme: "#c33f44", halo: "#d25457",
+      desc: "《女神异闻录5 X》男主角。代号 Wonder 的少年，觉醒了「人格面具」的力量，在一个失去欲望的世界里，为夺回人们被抹去的渴望而出手。",
+      analysis: "你的作答节奏快而果断，先动起来再修正，跟他一个路子。好奇心推着你往前跑，比起结论你更在意路上遇到的人和事，越陌生的地方你越来劲。",
+      profile: [12, 24, 12, 52]
+    }
   ];
 
   // 24 道题，每道题的选项会给特定角色加分
+  // 24 道题，每道题四个选项，分别对应四种人格倾向（每个选项给对应角色加分）
+  // A 行动·领袖  B 内省·内敛  C 温情·亲和  D 自由·叛逆（和 swap_vec.mjs 模板一致）
+  // 24 道题，每道题四个选项，每个选项打出一组四维向量：
+  // [内敛, 亲和, 领袖, 叛逆]
+  // A 行动·牵头(领袖)  B 内省·清醒(内敛)  C 温情·陪伴(亲和)  D 自由·叛逆(叛逆)（向量已正交，每维独立拉满）
   var questions = [
     { q: "周末的午后，你更倾向于怎样度过？", options: [
-      { text: "和朋友一起外出，享受热闹的街道", scores: { "鸣上悠": 2, "雨宫莲": 1, "上城渚": 1 } },
-      { text: "一个人待在家里，看书或打游戏", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } }
+      { text: "约上三五好友出门，去热闹的街头或球场挥洒活力", vec: [0, 0, 3, 0] },
+      { text: "待在安静的房间里，读书、思考或整理自己的思绪", vec: [3, 0, 0, 0] },
+      { text: "和家人朋友窝在一起，聊聊天、做顿饭，享受陪伴", vec: [0, 3, 0, 0] },
+      { text: "甩开计划一个人去未知的角落探险，随性而动", vec: [0, 0, 0, 3] }
     ]},
     { q: "当你目睹不公正的事情发生时，你的第一反应是？", options: [
-      { text: "立刻站出来，正面阻止对方", scores: { "周防达哉": 2, "雨宫莲": 2, "天野舞耶": 1 } },
-      { text: "先观察情况，用更巧妙的方式解决", scores: { "鸣上悠": 1, "藤堂尚也": 2, "上城渚": 1, "结城理": 1 } }
+      { text: "立刻站出来公开制止，绝不让错误继续", vec: [0, 0, 3, 0] },
+      { text: "先冷静弄清来龙去脉，再决定怎么处理", vec: [3, 0, 0, 0] },
+      { text: "先去安抚受影响的人，陪他们一起面对", vec: [0, 3, 0, 0] },
+      { text: "用出人意料的方式揭穿它，哪怕打破规则", vec: [0, 0, 0, 3] }
     ]},
     { q: "面对不可避免的离别，你会选择？", options: [
-      { text: "把回忆珍藏在心里，带着祝福继续前行", scores: { "汐见琴音": 2, "天野舞耶": 1, "上城渚": 1 } },
-      { text: "用自己的方式反抗命运，哪怕过程艰辛", scores: { "结城理": 2, "周防达哉": 2, "鸣上悠": 1 } }
+      { text: "主动承担，把大家的送别安排得妥妥当当", vec: [0, 0, 3, 0] },
+      { text: "独自消化情绪，在沉默中完成自己的告别", vec: [3, 0, 0, 0] },
+      { text: "把回忆和温暖留给彼此，笑着祝福对方", vec: [0, 3, 0, 0] },
+      { text: "拒绝温吞，用一场疯狂的纪念对抗遗憾", vec: [0, 0, 0, 3] }
     ]},
     { q: "你更认同哪种“面具”下的自我？", options: [
-      { text: "冷静而理性，在暗处观察并掌控全局", scores: { "藤堂尚也": 2, "结城理": 1, "鸣上悠": 1 } },
-      { text: "热情而感性，为了心中所想奋不顾身", scores: { "雨宫莲": 2, "天野舞耶": 1, "汐见琴音": 1 } }
+      { text: "可靠的主导者，关键时刻总能稳住局面", vec: [0, 0, 3, 0] },
+      { text: "清醒的旁观者，在暗处把一切看得分明", vec: [3, 0, 0, 0] },
+      { text: "温暖的调和者，让身边的人感到安心", vec: [0, 3, 0, 0] },
+      { text: "不羁的破局者，偏要撕掉别人贴的标签", vec: [0, 0, 0, 3] }
     ]},
     { q: "当朋友遇到困难向你求助时，你会？", options: [
-      { text: "毫不犹豫地伸出援手，哪怕自己会受牵连", scores: { "周防达哉": 2, "雨宫莲": 2, "汐见琴音": 1 } },
-      { text: "先帮对方分析局势，寻找最优解", scores: { "鸣上悠": 2, "藤堂尚也": 1, "结城理": 1 } }
+      { text: "二话不说冲在前面，带头帮他想办法", vec: [0, 0, 3, 0] },
+      { text: "帮他理清头绪，给出最稳妥的策略", vec: [3, 0, 0, 0] },
+      { text: "先陪在他身边，听他说完再一起扛", vec: [0, 3, 0, 0] },
+      { text: "拉他跳出困境，带他去换个活法", vec: [0, 0, 0, 3] }
     ]},
     { q: "你如何看待“规则”与“秩序”？", options: [
-      { text: "规则是用来保护大家的，应当遵守", scores: { "藤堂尚也": 2, "鸣上悠": 1, "汐见琴音": 1 } },
-      { text: "不合理的规则就应该被打破", scores: { "雨宫莲": 2, "周防达哉": 2, "天野舞耶": 1 } }
+      { text: "好的秩序需要有人维护，我会站出来", vec: [0, 0, 3, 0] },
+      { text: "规则是工具，理解其逻辑才能用好它", vec: [3, 0, 0, 0] },
+      { text: "秩序让人安心，守着它大家都能好好相处", vec: [0, 3, 0, 0] },
+      { text: "不合理的规矩就该被打破，我才不盲从", vec: [0, 0, 0, 3] }
     ]},
     { q: "在团队中，你通常扮演什么角色？", options: [
-      { text: "领导者，负责统筹全局", scores: { "鸣上悠": 2, "周防达哉": 1, "雨宫莲": 1 } },
-      { text: "倾听者，默默支持大家", scores: { "藤堂尚也": 2, "结城理": 1, "汐见琴音": 1 } }
+      { text: "牵头的人，负责定方向、推大家前进", vec: [0, 0, 3, 0] },
+      { text: "军师，在背后分析局势、出谋划策", vec: [3, 0, 0, 0] },
+      { text: "黏合剂，照顾每个人的情绪和关系", vec: [0, 3, 0, 0] },
+      { text: "变数，带来新点子也挑战老套路", vec: [0, 0, 0, 3] }
     ]},
     { q: "面对失败和挫折，你的态度是？", options: [
-      { text: "总结经验，下次一定要赢回来", scores: { "雨宫莲": 2, "上城渚": 2, "天野舞耶": 1 } },
-      { text: "接受现实，从中寻找新的意义", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } }
+      { text: "重整旗鼓，带着大家再冲一次", vec: [0, 0, 3, 0] },
+      { text: "复盘原因，把教训变成下一步的筹码", vec: [3, 0, 0, 0] },
+      { text: "给自己和同伴一点温柔，慢慢缓过来", vec: [0, 3, 0, 0] },
+      { text: "不服气，偏要用另一种方式证明自己", vec: [0, 0, 0, 3] }
     ]},
     { q: "你更喜欢哪种类型的音乐？", options: [
-      { text: "节奏感强、充满活力的流行乐", scores: { "汐见琴音": 2, "上城渚": 2, "天野舞耶": 1 } },
-      { text: "深沉、安静，能引发思考的曲子", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } }
+      { text: "燃向的现场感，能带动全场一起沸腾", vec: [0, 0, 3, 0] },
+      { text: "安静的器乐，适合独处时沉淀心思", vec: [3, 0, 0, 0] },
+      { text: "治愈的情歌，听着就觉得被拥抱", vec: [0, 3, 0, 0] },
+      { text: "小众又带刺的曲风，越冷门越对味", vec: [0, 0, 0, 3] }
     ]},
     { q: "如果拥有一种超能力，你希望是？", options: [
-      { text: "读心术，能看透他人的真实想法", scores: { "藤堂尚也": 2, "鸣上悠": 1, "上城渚": 1 } },
-      { text: "时间暂停，能拥有属于自己的瞬间", scores: { "结城理": 2, "周防达哉": 1, "雨宫莲": 1 } }
+      { text: "领导力具现，能让一群人拧成一股绳", vec: [0, 0, 3, 0] },
+      { text: "洞察真相，一眼看穿问题的本质", vec: [3, 0, 0, 0] },
+      { text: "治愈联结，抚平他人的伤痛与孤独", vec: [0, 3, 0, 0] },
+      { text: "打破界限，去任何被禁止的地方", vec: [0, 0, 0, 3] }
     ]},
     { q: "你如何看待“命运”？", options: [
-      { text: "命运是注定的，但我们可以选择如何面对", scores: { "结城理": 2, "藤堂尚也": 1, "汐见琴音": 1 } },
-      { text: "命运掌握在自己手中，绝不认输", scores: { "雨宫莲": 2, "周防达哉": 2, "天野舞耶": 1 } }
+      { text: "命运由强者书写，我偏要改写它", vec: [0, 0, 3, 0] },
+      { text: "命运有规律可循，看清它就不再怕", vec: [3, 0, 0, 0] },
+      { text: "命运里有羁绊，珍惜相遇便足够", vec: [0, 3, 0, 0] },
+      { text: "命运是用来反抗的，我命由我不由天", vec: [0, 0, 0, 3] }
     ]},
     { q: "在一场重要的考试或比赛前，你会？", options: [
-      { text: "充分准备，把能做的都做到最好", scores: { "鸣上悠": 2, "藤堂尚也": 1, "上城渚": 1 } },
-      { text: "顺其自然，相信临场发挥", scores: { "天野舞耶": 2, "汐见琴音": 1, "周防达哉": 1 } }
+      { text: "带动同伴一起备战，把氛围拉满", vec: [0, 0, 3, 0] },
+      { text: "列好计划，把每个细节都准备到位", vec: [3, 0, 0, 0] },
+      { text: "给大家打气，缓解紧张的弦", vec: [0, 3, 0, 0] },
+      { text: "不按套路来，相信临场的灵光一闪", vec: [0, 0, 0, 3] }
     ]},
     { q: "你更喜欢什么样的朋友？", options: [
-      { text: "真诚坦率，有话直说", scores: { "周防达哉": 2, "雨宫莲": 1, "天野舞耶": 1 } },
-      { text: "温柔体贴，懂得倾听", scores: { "藤堂尚也": 2, "汐见琴音": 1, "结城理": 1 } }
+      { text: "有担当、能一起扛事儿的伙伴", vec: [0, 0, 3, 0] },
+      { text: "聊得深、能碰撞想法的同频者", vec: [3, 0, 0, 0] },
+      { text: "温柔体贴、会默默惦记你的人", vec: [0, 3, 0, 0] },
+      { text: "古灵精怪、总能带来惊喜的同类", vec: [0, 0, 0, 3] }
     ]},
     { q: "当你感到迷茫时，你会？", options: [
-      { text: "找朋友聊聊，从他们那里获得力量", scores: { "汐见琴音": 2, "上城渚": 1, "天野舞耶": 1 } },
-      { text: "独自思考，直到找到答案", scores: { "结城理": 2, "鸣上悠": 1, "藤堂尚也": 1 } }
+      { text: "拉上值得信任的人一起找出路", vec: [0, 0, 3, 0] },
+      { text: "退一步静下来，把自己想通", vec: [3, 0, 0, 0] },
+      { text: "从在乎的人那里汲取力量", vec: [0, 3, 0, 0] },
+      { text: "干脆先去行动，在闯荡里找方向", vec: [0, 0, 0, 3] }
     ]},
     { q: "你如何看待“牺牲”这个词？", options: [
-      { text: "为了保护重要的人，牺牲是值得的", scores: { "结城理": 2, "周防达哉": 2, "鸣上悠": 1 } },
-      { text: "生命只有一次，应该好好珍惜", scores: { "汐见琴音": 2, "天野舞耶": 1, "上城渚": 1 } }
+      { text: "为了保护重要的人，带头牺牲也值得", vec: [0, 0, 3, 0] },
+      { text: "牺牲要算清代价，不值得的绝不盲目", vec: [3, 0, 0, 0] },
+      { text: "宁愿自己辛苦，也不愿看到别人受伤", vec: [0, 3, 0, 0] },
+      { text: "命只有一条，要为自己而活得尽兴", vec: [0, 0, 0, 3] }
     ]},
     { q: "在陌生的环境里，你通常？", options: [
-      { text: "主动出击，快速结交新朋友", scores: { "上城渚": 2, "汐见琴音": 2, "天野舞耶": 1 } },
-      { text: "先观察，找到合适的机会再融入", scores: { "鸣上悠": 1, "结城理": 1, "藤堂尚也": 1 } }
+      { text: "主动张罗，很快把局面热络起来", vec: [0, 0, 3, 0] },
+      { text: "先观察规则与人，找准位置再融入", vec: [3, 0, 0, 0] },
+      { text: "用善意接近，慢慢交到真朋友", vec: [0, 3, 0, 0] },
+      { text: "独来独往，按自己的节奏探索", vec: [0, 0, 0, 3] }
     ]},
     { q: "你更倾向于相信？", options: [
-      { text: "眼见为实，证据和逻辑最重要", scores: { "鸣上悠": 2, "藤堂尚也": 1, "结城理": 1 } },
-      { text: "直觉和内心的感受", scores: { "天野舞耶": 1, "汐见琴音": 1, "上城渚": 2 } }
+      { text: "行动能改变结果，做就比空想强", vec: [0, 0, 3, 0] },
+      { text: "事实与逻辑，证据面前自有答案", vec: [3, 0, 0, 0] },
+      { text: "人与人之间的真心，胜过千言万语", vec: [0, 3, 0, 0] },
+      { text: "直觉与自由，规矩框不住真实", vec: [0, 0, 0, 3] }
     ]},
     { q: "如果明天就是世界末日，你会？", options: [
-      { text: "和最重要的人在一起，平静度过", scores: { "结城理": 2, "汐见琴音": 1, "藤堂尚也": 1 } },
-      { text: "做一直想做但没敢做的事", scores: { "雨宫莲": 2, "周防达哉": 1, "上城渚": 1 } }
+      { text: "组织大家好好道别，把遗憾降到最低", vec: [0, 0, 3, 0] },
+      { text: "独自安静地回望这一生", vec: [3, 0, 0, 0] },
+      { text: "和最在乎的人紧紧相拥到最后一刻", vec: [0, 3, 0, 0] },
+      { text: "去做那件一直没敢做的事，不留白", vec: [0, 0, 0, 3] }
     ]},
     { q: "你如何看待“谎言”？", options: [
-      { text: "善意的谎言有时是必要的", scores: { "鸣上悠": 1, "天野舞耶": 1, "藤堂尚也": 1 } },
-      { text: "真相即使再残酷，也比谎言好", scores: { "周防达哉": 2, "结城理": 1, "雨宫莲": 1 } }
+      { text: "必要时我会替大家兜住真相", vec: [0, 0, 3, 0] },
+      { text: "能不撒谎就不撒，逻辑要对得上", vec: [3, 0, 0, 0] },
+      { text: "善意的谎言是温柔，可以理解", vec: [0, 3, 0, 0] },
+      { text: "假的就是假的，但我偏要戏弄规则", vec: [0, 0, 0, 3] }
     ]},
     { q: "你觉得自己更像哪种动物？", options: [
-      { text: "狼，独立且忠诚于自己的族群", scores: { "周防达哉": 2, "雨宫莲": 1, "结城理": 1 } },
-      { text: "海豚，聪明且善于社交", scores: { "汐见琴音": 2, "上城渚": 2, "天野舞耶": 1 } }
+      { text: "头狼，带领族群也守护领地", vec: [0, 0, 3, 0] },
+      { text: "猫头鹰，安静却洞悉一切", vec: [3, 0, 0, 0] },
+      { text: "海豚，聪明又最懂陪伴", vec: [0, 3, 0, 0] },
+      { text: "狐狸，机敏不羁爱自由", vec: [0, 0, 0, 3] }
     ]},
     { q: "面对别人的误解，你会？", options: [
-      { text: "努力解释，直到对方明白", scores: { "天野舞耶": 1, "汐见琴音": 1, "上城渚": 1 } },
-      { text: "清者自清，懒得解释", scores: { "结城理": 2, "周防达哉": 1, "藤堂尚也": 1 } }
+      { text: "正面回应，把误会当面说清", vec: [0, 0, 3, 0] },
+      { text: "用事实和行动慢慢自证", vec: [3, 0, 0, 0] },
+      { text: "在乎的人懂我就好，其余随它", vec: [0, 3, 0, 0] },
+      { text: "懒得解释，活出样来让他们闭嘴", vec: [0, 0, 0, 3] }
     ]},
     { q: "你更喜欢哪种电影？", options: [
-      { text: "热血的动作片，充满激情", scores: { "雨宫莲": 2, "周防达哉": 1, "上城渚": 1 } },
-      { text: "发人深省的文艺片", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } }
+      { text: "群像热血，看主角带着伙伴逆袭", vec: [0, 0, 3, 0] },
+      { text: "烧脑悬疑，享受抽丝剥茧的快感", vec: [3, 0, 0, 0] },
+      { text: "温情治愈，看完心里暖暖的", vec: [0, 3, 0, 0] },
+      { text: "反叛cult，越颠覆越带感", vec: [0, 0, 0, 3] }
     ]},
     { q: "在友情中，你最看重什么？", options: [
-      { text: "信任，一旦破碎就无法挽回", scores: { "周防达哉": 2, "鸣上悠": 1, "雨宫莲": 1 } },
-      { text: "陪伴，无论何时都在身边", scores: { "汐见琴音": 2, "藤堂尚也": 1, "天野舞耶": 1 } }
+      { text: "义气，关键时刻肯为你出头", vec: [0, 0, 3, 0] },
+      { text: "默契，不用多说就懂彼此", vec: [3, 0, 0, 0] },
+      { text: "陪伴，细水长流的惦记", vec: [0, 3, 0, 0] },
+      { text: "自由，各自精彩也彼此尊重", vec: [0, 0, 0, 3] }
     ]},
     { q: "如果可以选择，你希望自己的“面具”是什么颜色？", options: [
-      { text: "蓝色，冷静、深邃，像大海一样", scores: { "结城理": 2, "藤堂尚也": 1, "鸣上悠": 1 } },
-      { text: "红色，热情、燃烧，像火焰一样", scores: { "雨宫莲": 2, "周防达哉": 1, "天野舞耶": 1 } }
+      { text: "金色，耀眼而有号召力", vec: [0, 0, 3, 0] },
+      { text: "靛蓝，深沉而清醒", vec: [3, 0, 0, 0] },
+      { text: "暖橙，温柔而有温度", vec: [0, 3, 0, 0] },
+      { text: "品红，张扬而不羁", vec: [0, 0, 0, 3] }
     ]}
   ];
 
-  var currentIndex = 0;
-  var scores = {};
 
-  var overlay = document.getElementById('quizOverlay');
+
+  var currentIndex = 0;
+  var DIMS = ['内敛', '亲和', '领袖', '叛逆'];
+  var dimScores = [0, 0, 0, 0];   // 四维累加：[内敛, 亲和, 领袖, 叛逆]
+  var dimMax = [0, 0, 0, 0];      // 每维理论最大值（按题库动态算出），用于归一化
+  var answers = [];   // 每题所选选项的 vec，用于“返回上一题”时回退计分
+  (function () { // 预计算每维理论最大值 = 各题该维最大值之和（用于把累加值归一化到 0-100）
+    questions.forEach(function (q) {
+      var mx = [0, 0, 0, 0];
+      q.options.forEach(function (o) {
+        o.vec.forEach(function (v, d) { if (v > mx[d]) mx[d] = v; });
+      });
+      mx.forEach(function (v, d) { dimMax[d] += v; });
+    });
+  })();
+
+  var quizView = document.getElementById('quizView');
+  var backBtn = document.getElementById('quizBackBtn');
   var btn = document.getElementById('startQuizBtn');
   var indexEl = document.getElementById('quizIndex');
   var qTextEl = document.getElementById('quizQuestionText');
   var optsEl = document.getElementById('quizOptions');
+  var prevBtn = document.getElementById('quizPrevBtn');
   var progressBar = document.getElementById('quizProgressBar');
   var questionArea = document.getElementById('quizQuestionArea');
   var resultArea = document.getElementById('quizResultArea');
   var resultName = document.getElementById('quizResultName');
   var resultDesc = document.getElementById('quizResultDesc');
+  var resultImg = document.getElementById('quizResultImg');
+  var matchBars = document.getElementById('quizMatchBars');
+  var analysisEl = document.getElementById('quizResultAnalysis');
+  var traitBars = document.getElementById('quizTraitBars');
+  var chartBars = document.getElementById('quizChartBars');
   var restartBtn = document.getElementById('quizRestartBtn');
+  var quizContainer = document.getElementById('quizContainer');
 
-  // 首页浮层版：点「签订契约」打开答题，点遮罩空白处关掉（下方已有遮罩关闭）。
-  // 和主页同一个文档 —— 没有页面跳转，BGM 一直播，不会被切页打断。
+  // 最近一次结果快照：给「生成我的角色卡」用
+  var lastResult = null;
+
+  // 答题视图：点「签订契约」进入答题，同文档无跳转，BGM 一直播放。
   btn.addEventListener('click', function (e) {
     e.preventDefault();
-    overlay.classList.add('active');
-    resetQuiz();
+    var cw = document.querySelector('.content-wrap');
+    cw.classList.add('is-leaving');
+    setTimeout(function () {
+      fitQuizView();
+      document.body.classList.add('quiz-mode');
+      cw.classList.remove('is-leaving');
+      window.scrollTo(0, 0);
+      syncLayerHeight();   // 答题模式把背景层撑到 200vh
+      resetQuiz();
+    }, 300);
+  });
+
+  // 答题页高度 = 视口 - 顶部海报实际高度（海报是图片自适应，CSS 拿不到精确值）
+  function fitQuizView() {
+    var banner = document.querySelector('.hero-banner');
+    if (banner) {
+      document.documentElement.style.setProperty('--banner-h', banner.offsetHeight + 'px');
+    }
+  }
+  window.addEventListener('resize', function () {
+    if (document.body.classList.contains('quiz-mode')) fitQuizView();
+  });
+
+  // 返回主页
+  backBtn.addEventListener('click', function () {
+    var qv = document.getElementById('quizView');
+    qv.classList.add('is-leaving');
+    setTimeout(function () {
+      document.body.classList.remove('quiz-mode');
+      qv.classList.remove('is-leaving');
+      window.scrollTo(0, 0);
+      syncLayerHeight();   // 回到主页：背景层恢复贴合主页内容
+      var cw = document.querySelector('.content-wrap');
+      cw.classList.remove('fade-in');
+      void cw.offsetWidth;   // 强制重排以重放淡入动画
+      cw.classList.add('fade-in');
+    }, 300);
+  });
+
+  // 返回上一题（已选的得分保留，直到再次作答该题才回退重计）
+  prevBtn.addEventListener('click', function () {
+    if (currentIndex > 0) {
+      currentIndex--;
+      showQuestion();
+    }
   });
 
   // 重置并开始答题
   function resetQuiz() {
     currentIndex = 0;
-    scores = {};
-    characters.forEach(function (c) { scores[c.name] = 0; });
+    dimScores = [0, 0, 0, 0];
+    answers = [];
     resultArea.style.display = 'none';
+    resultArea.classList.remove('show');
+    quizContainer.classList.remove('result-mode');
+    matchBars.innerHTML = '';
     questionArea.style.display = 'block';
     showQuestion();
   }
@@ -1795,17 +2323,21 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
     indexEl.textContent = 'Q' + (currentIndex + 1) + ' / ' + questions.length;
     qTextEl.textContent = q.q;
     progressBar.style.width = ((currentIndex) / questions.length * 100) + '%';
+    prevBtn.disabled = currentIndex === 0;
     optsEl.innerHTML = '';
 
     q.options.forEach(function (opt) {
-      var btn = document.createElement('button');
-      btn.className = 'quiz-option';
-      btn.textContent = opt.text;
-      btn.addEventListener('click', function () {
-        // 加分
-        for (var key in opt.scores) {
-          if (scores[key] !== undefined) scores[key] += opt.scores[key];
+      var ob = document.createElement('button');
+      ob.className = 'quiz-option';
+      ob.textContent = opt.text;
+      ob.addEventListener('click', function () {
+        // 回退该题已有的维度得分（支持返回修改）
+        if (answers[currentIndex]) {
+          answers[currentIndex].forEach(function (v, d) { dimScores[d] -= v; });
         }
+        // 累加本题选项的维度向量
+        opt.vec.forEach(function (v, d) { dimScores[d] += v; });
+        answers[currentIndex] = opt.vec.slice();
         currentIndex++;
         if (currentIndex < questions.length) {
           showQuestion();
@@ -1813,31 +2345,187 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
           showResult();
         }
       });
-      optsEl.appendChild(btn);
+      optsEl.appendChild(ob);
     });
   }
 
   // 显示结果
+  // 相似度的定性标签
+  function simLabel(p) {
+    if (p >= 90) return '灵魂共鸣';
+    if (p >= 80) return '高度契合';
+    if (p >= 70) return '精神同频';
+    if (p >= 60) return '隐隐相契';
+    return '偶有交集';
+  }
+
+  // 生成一条契合度行（含定性标签，宽度由 data-pct 控制，稍后动画补满）
+  function makeMatchRow(c, pct, isTop, isYou) {
+    var row = document.createElement('div');
+    row.className = 'quiz-match-row' + (isTop ? ' top' : '');
+    row.setAttribute('data-pct', pct);
+    row.innerHTML =
+      '<span class="quiz-match-name">' + c.name + (isYou ? '·你' : '') + '</span>' +
+      '<span class="quiz-match-track"><i class="quiz-match-fill"></i></span>' +
+      '<span class="quiz-match-pct">' + pct + '%</span>' +
+      '<span class="quiz-match-tag">' + simLabel(pct) + '</span>';
+    return row;
+  }
+
+  // 四维文字解读
+  function dimDesc(d, v) {
+    var hi = [
+      '你习惯把真实想法收着，不轻易亮底牌，先想透再开口。',
+      '你天然能接住别人的情绪，陪伴对你而言不是消耗而是本能。',
+      '局面一旦需要人牵头，你很难退到后排，总忍不住把方向扛起来。',
+      '骨子里有股不服的劲，规矩若讲不通，你更愿意自己另开一条路。'
+    ];
+    var mid = [
+      '你分寸拿得稳，熟了才多说，不急着交底。',
+      '你体贴，只是不轻易把柔软全亮出来，熟了才显。',
+      '该你出面时你能稳住场面，只是更看场合，不轻易抢在头里。',
+      '你有自己的一套准则，不盲从，更愿在规则里找到自己的余地。'
+    ];
+    var lo = [
+      '你想到什么就摊什么，藏不住事，活得敞亮。',
+      '你并非冷漠，只是把温柔收着用，不轻易外溢。',
+      '你更习惯待在队友身边当支撑，把主导位让出去，一样把事做成。',
+      '你大多顺着共识走，但那股不肯被框死的劲，会在特定时刻自然冒出来。'
+    ];
+    return v >= 60 ? hi[d] : (v >= 35 ? mid[d] : lo[d]);
+  }
+
+  // 四维雷达图（SVG）
+  function buildRadar(vals) {
+    var size = 260, cx = 130, cy = 130, R = 84, n = 4;
+    function pt(d, r) {
+      var ang = (-90 + d * 90) * Math.PI / 180;
+      return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+    }
+    var labels = ['内敛', '亲和', '领袖', '叛逆'];
+    var svg = '<svg class="quiz-radar" viewBox="0 0 ' + size + ' ' + size + '" role="img" aria-label="四维灵魂特质雷达图">';
+    [0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var pts = [];
+      for (var d = 0; d < n; d++) { var p = pt(d, R * f); pts.push(p[0].toFixed(1) + ',' + p[1].toFixed(1)); }
+      svg += '<polygon class="quiz-radar-grid" points="' + pts.join(' ') + '"/>';
+    });
+    for (var d = 0; d < n; d++) {
+      var e = pt(d, R);
+      svg += '<line class="quiz-radar-axis" x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) + '"/>';
+      var lp = pt(d, R + 15);
+      svg += '<text class="quiz-radar-label" x="' + lp[0].toFixed(1) + '" y="' + (lp[1] + 4).toFixed(1) + '" text-anchor="middle">' + labels[d] + '</text>';
+    }
+    var dpts = [];
+    for (var d2 = 0; d2 < n; d2++) { var p2 = pt(d2, R * vals[d2] / 100); dpts.push(p2[0].toFixed(1) + ',' + p2[1].toFixed(1)); }
+    svg += '<g class="quiz-radar-g"><polygon class="quiz-radar-poly" points="' + dpts.join(' ') + '"/>';
+    for (var d3 = 0; d3 < n; d3++) { var p3 = pt(d3, R * vals[d3] / 100); svg += '<circle class="quiz-radar-dot" cx="' + p3[0].toFixed(1) + '" cy="' + p3[1].toFixed(1) + '" r="3"/>'; }
+    svg += '</g></svg>';
+    return svg;
+  }
+
+  // 逐维解读块
+  function buildDimComments(userDim) {
+    var names = ['内敛', '亲和', '领袖', '叛逆'];
+    var html = '<div class="quiz-dim-comments">';
+    names.forEach(function (nm, d) {
+      var v = userDim[d];
+      var lv = v >= 75 ? '充盈' : (v >= 50 ? '稳健' : (v >= 30 ? '内敛' : '蛰伏'));
+      html += '<div class="quiz-dim-line"><div class="quiz-dim-head"><b>' + nm + '</b>' +
+        '<span class="quiz-dim-val">' + v + '</span><span class="quiz-dim-word">' + lv + '</span></div>' +
+        '<p>' + dimDesc(d, v) + '</p></div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
   function showResult() {
     progressBar.style.width = '100%';
     questionArea.style.display = 'none';
     resultArea.style.display = 'block';
+    quizContainer.classList.add('result-mode');
 
-    // 找出最高分（如果平局，随机选择一个）
-    var maxScore = -1;
-    var topChars = [];
-    characters.forEach(function (c) {
-      if (scores[c.name] > maxScore) {
-        maxScore = scores[c.name];
-        topChars = [c];
-      } else if (scores[c.name] === maxScore) {
-        topChars.push(c);
-      }
+    // 1. 用户四维向量归一化到 0-100
+    var userDim = dimScores.map(function (v, d) {
+      var m = dimMax[d] || 1;
+      return Math.max(0, Math.min(100, Math.round(v / m * 100)));
     });
-    var topChar = topChars[Math.floor(Math.random() * topChars.length)];
+
+    // 2. 与 8 个角色画像做最近邻匹配（欧氏距离）
+    var dist = characters.map(function (c) {
+      var s = 0;
+      for (var d = 0; d < 4; d++) { var diff = userDim[d] - c.profile[d]; s += diff * diff; }
+      return { c: c, d: Math.sqrt(s) };
+    });
+    dist.sort(function (a, b) { return a.d - b.d; });
+    var topChar = dist[0].c;
+    var runnerUp = dist[1].c;
 
     resultName.textContent = topChar.name + ' / ' + topChar.en;
     resultDesc.textContent = topChar.desc;
+    resultImg.src = topChar.img;
+    resultImg.alt = topChar.name + '（' + topChar.en + '）人物卡';
+
+    // 每个角色一套主题色：染结果区强调色（作用域仅限结果区，不碰塔罗背景/海报）
+    resultArea.style.setProperty('--accent', topChar.theme);
+    resultArea.style.setProperty('--halo', topChar.halo || topChar.theme);
+
+    // 3. 展示数值 = 用户维度 × 0.55 + 角色画像 × 0.45（每次作答都不同，不再固定）
+    var shown = userDim.map(function (v, d) {
+      return Math.round(v * 0.55 + topChar.profile[d] * 0.45);
+    });
+
+    // 4. 人格评测长文 + 动态句（点出你最突出的维度）
+    var topDimIdx = 0;
+    for (var d = 1; d < 4; d++) { if (userDim[d] > userDim[topDimIdx]) topDimIdx = d; }
+    var dimWord = ['内敛', '亲和', '领袖', '叛逆'][topDimIdx];
+    var nearNote = (dist[1].d - dist[0].d <= 14)
+      ? '　顺带一提，你和【' + runnerUp.name + '】的契合度仅差一线——身上其实也藏着他的影子。'
+      : '';
+    analysisEl.textContent = topChar.analysis +
+      '　这一测里，你的「' + dimWord + '」尤为突出（' + userDim[topDimIdx] + ' 分），' +
+      '正是和' + topChar.name + '产生共鸣的那块拼图。' + nearNote;
+
+    // 5. 雷达图 + 逐维解读
+    traitBars.innerHTML = buildRadar(shown) + buildDimComments(userDim);
+
+    // 6. 全员相似度（替代死百分比），并据此排 TOP3 与全员分布
+    var sim = {};
+    characters.forEach(function (c) {
+      var dd = 0;
+      for (var k = 0; k < 4; k++) { var x = userDim[k] - c.profile[k]; dd += x * x; }
+      dd = Math.sqrt(dd);
+      sim[c.name] = Math.max(38, Math.min(99, Math.round(100 - dd / 200 * 50)));
+    });
+    var ranked = characters.slice().sort(function (a, b) { return sim[b.name] - sim[a.name]; }).slice(0, 3);
+    matchBars.innerHTML = '';
+    ranked.forEach(function (c, i) {
+      matchBars.appendChild(makeMatchRow(c, sim[c.name], i === 0, c === topChar));
+    });
+    var allRanked = characters.slice().sort(function (a, b) { return sim[b.name] - sim[a.name]; });
+    chartBars.innerHTML = '';
+    allRanked.forEach(function (c) {
+      chartBars.appendChild(makeMatchRow(c, sim[c.name], false, c === topChar));
+    });
+
+    // 快照本次结果，供角色形象卡生成
+    lastResult = { char: topChar, userDim: userDim, shown: shown, simPct: sim[topChar.name], simTag: simLabel(sim[topChar.name]) };
+
+    // 7. 重放浮现动画
+    resultArea.classList.remove('show');
+    void resultArea.offsetWidth;
+    resultArea.classList.add('show');
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        matchBars.querySelectorAll('.quiz-match-row').forEach(function (row) {
+          row.querySelector('.quiz-match-fill').style.width = row.getAttribute('data-pct') + '%';
+        });
+        chartBars.querySelectorAll('.quiz-match-row').forEach(function (row) {
+          row.querySelector('.quiz-match-fill').style.width = row.getAttribute('data-pct') + '%';
+        });
+        var g = traitBars.querySelector('.quiz-radar-g');
+        if (g) g.classList.add('in');
+      });
+    });
   }
 
   // 重新开始
@@ -1845,12 +2533,233 @@ body.bgm-collapsed .bgm-mini { display: block; animation: bgm-mini-in 0.3s ease;
     resetQuiz();
   });
 
-  // 点击遮罩关闭（可选）
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay) {
-      overlay.classList.remove('active');
+  // ==================== 生成我的角色形象卡 ====================
+  (function () {
+    var genBtn   = document.getElementById('quizGenCardBtn');
+    var modal    = document.getElementById('cardModal');
+    var modalImg = document.getElementById('cardModalImg');
+    var saveBtn  = document.getElementById('cardModalSave');
+    var closeBtn = document.getElementById('cardModalClose');
+    if (!genBtn || !modal) return;
+
+    var FONT = '"Noto Sans SC","Microsoft YaHei",sans-serif';
+
+    function hexA(hex, a) {
+      var h = (hex || '#c9a24a').replace('#', '');
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      var n = parseInt(h, 16);
+      return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
     }
-  });
+
+    function loadImg(src) {
+      return new Promise(function (resolve, reject) {
+        var im = new Image();
+        im.onload = function () { resolve(im); };
+        im.onerror = function () { reject(new Error('素材加载失败')); };
+        im.src = src;
+      });
+    }
+
+    // file:// 直开时，本地图片画进 canvas 会污染画布，toDataURL 必抛安全异常。
+    // 因此生成卡改用 data URI 立绘（打包在 ./images/persona/cut-data.js，点生成时才懒加载）。
+    function cutSrc(path) {
+      var m = /([^\/\\]+)\.webp$/.exec(path || '');
+      var map = window.PERSONA_CUT_DATA;
+      return (m && map && map[m[1]]) ? map[m[1]] : path;
+    }
+
+    var cutDataPromise = null;
+    function ensureCutData() {
+      if (window.PERSONA_CUT_DATA) return Promise.resolve();
+      if (cutDataPromise) return cutDataPromise;
+      cutDataPromise = new Promise(function (resolve) {
+        var s = document.createElement('script');
+        s.src = './images/persona/cut-data.js';
+        s.onload = function () { resolve(); };
+        s.onerror = function () { resolve(); };   // 取不到就退回原图路径
+        document.head.appendChild(s);
+      });
+      return cutDataPromise;
+    }
+
+    function rr(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    // 居中折行
+    function wrapCenter(ctx, text, maxW) {
+      var lines = [], line = '';
+      for (var i = 0; i < text.length; i++) {
+        var t = line + text.charAt(i);
+        if (ctx.measureText(t).width > maxW && line) { lines.push(line); line = text.charAt(i); }
+        else { line = t; }
+      }
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    function setLS(ctx, v) { try { ctx.letterSpacing = v; } catch (e) { /* 旧浏览器忽略 */ } }
+
+    function drawCard(res, img) {
+      var W = 1000, H = 1400, c = res.char;
+      var accent = c.theme, halo = c.halo || c.theme;
+      var canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      // 纸底
+      var bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, '#fdfbf5');
+      bg.addColorStop(1, '#f4eedd');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      // 主题色光晕（衬在人物后面）
+      var g = ctx.createRadialGradient(W / 2, 470, 60, W / 2, 470, 390);
+      g.addColorStop(0, hexA(halo, 0.9));
+      g.addColorStop(1, hexA(halo, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 60, W, 840);
+
+      // 双层细边框 + 角饰
+      ctx.strokeStyle = hexA(accent, 0.5);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(28, 28, W - 56, H - 56);
+      ctx.strokeStyle = hexA(accent, 0.22);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(42, 42, W - 84, H - 84);
+      ctx.fillStyle = hexA(accent, 0.75);
+      [[28, 28], [W - 28, 28], [28, H - 28], [W - 28, H - 28]].forEach(function (p) {
+        ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-5, -5, 10, 10); ctx.restore();
+      });
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+
+      // 顶部小标
+      ctx.fillStyle = hexA(accent, 0.9);
+      ctx.font = '500 26px ' + FONT;
+      setLS(ctx, '8px');
+      ctx.fillText('✦ 人格测试 · 测定结果 ✦', W / 2, 120);
+      setLS(ctx, '0px');
+
+      // 人物圆徽章（方形透明图，contain 放进固定区域，光晕衬底）
+      var bw = 640, bh = 640, bx = (W - bw) / 2, by = 150;
+      var s = Math.min(bw / img.width, bh / img.height);
+      var dw = img.width * s, dh = img.height * s;
+      ctx.drawImage(img, W / 2 - dw / 2, by + (bh - dh) / 2, dw, dh);
+
+      // 名字 / 罗马字
+      ctx.fillStyle = accent;
+      ctx.font = '700 74px ' + FONT;
+      ctx.fillText(c.name, W / 2, 898);
+      ctx.fillStyle = '#9a8f7a';
+      ctx.font = '600 24px ' + FONT;
+      setLS(ctx, '8px');
+      ctx.fillText(c.en, W / 2, 944);
+      setLS(ctx, '0px');
+
+      // 引言（角色一句话）
+      ctx.fillStyle = '#5a5466';
+      ctx.font = '400 27px ' + FONT;
+      var ly = 1006;
+      wrapCenter(ctx, c.desc, 690).slice(0, 3).forEach(function (ln) {
+        ctx.fillText(ln, W / 2, ly); ly += 42;
+      });
+
+      // 特质徽章：取展示值最高的两维；次高不足 25 就只留一个（极端作答时不出现「领袖76 / 亲和12」这种怪组合）
+      var dimNames = ['内敛', '亲和', '领袖', '叛逆'];
+      var order = [0, 1, 2, 3].sort(function (a, b) { return res.shown[b] - res.shown[a]; });
+      var picks = order.slice(0, 2).filter(function (i, k) { return k === 0 || res.shown[i] >= 25; });
+      ctx.font = '600 26px ' + FONT;
+      var chips = picks.map(function (i) { return dimNames[i] + ' ' + res.shown[i]; });
+      var widths = chips.map(function (t) { return ctx.measureText(t).width; });
+      var chipH = 56, pad = 30, gap = 20;
+      var sum = 0;
+      for (var wi = 0; wi < widths.length; wi++) sum += widths[wi];
+      var total = sum + pad * 2 * chips.length + gap * (chips.length - 1);
+      var chipX = W / 2 - total / 2, cy = 1130;
+      chips.forEach(function (t, i) {
+        if (i > 0) chipX += widths[i - 1] + pad * 2 + gap;
+        rr(ctx, chipX, cy, widths[i] + pad * 2, chipH, 28);
+        ctx.fillStyle = hexA(accent, 0.08);
+        ctx.fill();
+        ctx.strokeStyle = hexA(accent, 0.55);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = accent;
+        ctx.fillText(t, chipX + pad + widths[i] / 2, cy + 37);
+      });
+
+      // 契合度
+      ctx.fillStyle = '#8a7f6a';
+      ctx.font = '400 26px ' + FONT;
+      setLS(ctx, '6px');
+      ctx.fillText('灵魂契合度', W / 2, 1244);
+      setLS(ctx, '0px');
+      ctx.fillStyle = accent;
+      ctx.font = '700 54px ' + FONT;
+      ctx.fillText(res.simPct + '% · ' + res.simTag, W / 2, 1306);
+
+      // 页脚落款
+      ctx.fillStyle = '#b3a88f';
+      ctx.font = '400 22px ' + FONT;
+      setLS(ctx, '4px');
+      ctx.fillText('女神异闻录 · 人格测试', W / 2, 1354);
+      setLS(ctx, '0px');
+
+      return canvas;
+    }
+
+    function closeModal() { modal.classList.remove('open'); }
+
+    genBtn.addEventListener('click', function () {
+      if (!lastResult || genBtn.disabled) return;
+      var oldHtml = genBtn.innerHTML;
+      genBtn.disabled = true;
+      genBtn.textContent = '生成中…';
+      var jobs = [ensureCutData().then(function () { return loadImg(cutSrc(lastResult.char.img)); })];
+      if (document.fonts && document.fonts.ready) jobs.push(document.fonts.ready);
+      Promise.all(jobs)
+        .then(function (r) {
+          var data = drawCard(lastResult, r[0]).toDataURL('image/png');
+          modal.style.setProperty('--accent', lastResult.char.theme);
+          modalImg.src = data;
+          modal.classList.add('open');
+        })
+        .catch(function () {
+          alert('角色卡没能生成：素材加载或导出失败，刷新页面后再试一次。');
+        })
+        .then(function () {
+          genBtn.disabled = false;
+          genBtn.innerHTML = oldHtml;
+        });
+    });
+
+    saveBtn.addEventListener('click', function () {
+      if (!modalImg.src) return;
+      var a = document.createElement('a');
+      a.href = modalImg.src;
+      a.download = '角色卡-' + (lastResult ? lastResult.char.name : '') + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+    });
+  })();
 })();
 
 // ==================== 背景音乐 ====================
